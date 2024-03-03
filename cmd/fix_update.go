@@ -311,13 +311,13 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		return err
 	}
 
-	mrslv := newMetaResolver()
+	metaResolver := newMetaResolver()
 	kinds := make(map[string]rule.KindInfo)
 	loads := genericLoads
 	exts := make([]interface{}, 0, len(languages))
 	for _, lang := range languages {
 		for kind, info := range lang.Kinds() {
-			mrslv.AddBuiltin(kind, lang)
+			metaResolver.AddBuiltin(kind, lang)
 			kinds[kind] = info
 		}
 		if moduleAwareLang, ok := lang.(language.ModuleAwareLanguage); ok {
@@ -327,7 +327,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		}
 		exts = append(exts, lang)
 	}
-	ruleIndex := resolve.NewRuleIndex(mrslv.Resolver, exts...)
+	ruleIndex := resolve.NewRuleIndex(metaResolver.Resolver, exts...)
 
 	if err := fixRepoFiles(c, loads); err != nil {
 		return err
@@ -356,37 +356,37 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 		cexts,
 		uc.dirs,
 		uc.walkMode,
-		func(dir, rel string, c *config.Config, update bool, f *rule.File, subdirs, regularFiles, genFiles []string) {
+		func(dir, rel string, cfg *config.Config, update bool, ruleFile *rule.File, subdirs, regularFiles, genFiles []string) {
 			// If this file is ignored or if Gazelle was not asked to update this
 			// directory, just index the build file and move on.
 			if !update {
-				if c.IndexLibraries && f != nil {
-					for _, repl := range c.KindMap {
-						mrslv.MappedKind(rel, repl)
+				if cfg.IndexLibraries && ruleFile != nil {
+					for _, repl := range cfg.KindMap {
+						metaResolver.MappedKind(rel, repl)
 					}
-					for _, r := range f.Rules {
-						ruleIndex.AddRule(c, r, f)
+					for _, rule := range ruleFile.Rules {
+						ruleIndex.AddRule(cfg, rule, ruleFile)
 					}
 				}
 				return
 			}
 
 			// Fix any problems in the file.
-			if f != nil {
-				for _, l := range filterLanguages(c, languages) {
-					l.Fix(c, f)
+			if ruleFile != nil {
+				for _, l := range filterLanguages(cfg, languages) {
+					l.Fix(cfg, ruleFile)
 				}
 			}
 
 			// Generate rules.
 			var empty, gen []*rule.Rule
 			var imports []interface{}
-			for _, l := range filterLanguages(c, languages) {
+			for _, l := range filterLanguages(cfg, languages) {
 				res := l.GenerateRules(language.GenerateArgs{
-					Config:       c,
+					Config:       cfg,
 					Dir:          dir,
 					Rel:          rel,
-					File:         f,
+					File:         ruleFile,
 					Subdirs:      subdirs,
 					RegularFiles: regularFiles,
 					GenFiles:     genFiles,
@@ -406,7 +406,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				gen = append(gen, res.Gen...)
 				imports = append(imports, res.Imports...)
 			}
-			if f == nil && len(gen) == 0 {
+			if ruleFile == nil && len(gen) == 0 {
 				return
 			}
 
@@ -418,11 +418,11 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 			// We apply map_kind to all rules, including pre-existing ones.
 			var allRules []*rule.Rule
 			allRules = append(allRules, gen...)
-			if f != nil {
-				allRules = append(allRules, f.Rules...)
+			if ruleFile != nil {
+				allRules = append(allRules, ruleFile.Rules...)
 			}
 			for _, r := range allRules {
-				repl, err := lookupMapKindReplacement(c.KindMap, r.Kind())
+				repl, err := lookupMapKindReplacement(cfg.KindMap, r.Kind())
 				if err != nil {
 					errorsFromWalk = append(
 						errorsFromWalk,
@@ -433,44 +433,44 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 				if repl != nil {
 					mappedKindInfo[repl.KindName] = kinds[r.Kind()]
 					mappedKinds = append(mappedKinds, *repl)
-					mrslv.MappedKind(rel, *repl)
+					metaResolver.MappedKind(rel, *repl)
 					r.SetKind(repl.KindName)
 				}
 			}
 			for _, r := range empty {
-				if repl, ok := c.KindMap[r.Kind()]; ok {
+				if repl, ok := cfg.KindMap[r.Kind()]; ok {
 					mappedKindInfo[repl.KindName] = kinds[r.Kind()]
 					mappedKinds = append(mappedKinds, repl)
-					mrslv.MappedKind(rel, repl)
+					metaResolver.MappedKind(rel, repl)
 					r.SetKind(repl.KindName)
 				}
 			}
 
 			// Insert or merge rules into the build file.
-			if f == nil {
-				f = rule.EmptyFile(filepath.Join(dir, c.DefaultBuildFileName()), rel)
+			if ruleFile == nil {
+				ruleFile = rule.EmptyFile(filepath.Join(dir, cfg.DefaultBuildFileName()), rel)
 				for _, r := range gen {
-					r.Insert(f)
+					r.Insert(ruleFile)
 				}
 			} else {
-				merger.MergeFile(f, empty, gen, merger.PreResolve,
+				merger.MergeFile(ruleFile, empty, gen, merger.PreResolve,
 					unionKindInfoMaps(kinds, mappedKindInfo))
 			}
 			visits = append(visits, visitRecord{
 				pkgRel:         rel,
-				c:              c,
+				c:              cfg,
 				rules:          gen,
 				imports:        imports,
 				empty:          empty,
-				file:           f,
+				file:           ruleFile,
 				mappedKinds:    mappedKinds,
 				mappedKindInfo: mappedKindInfo,
 			})
 
 			// Add library rules to the dependency resolution table.
-			if c.IndexLibraries {
-				for _, r := range f.Rules {
-					ruleIndex.AddRule(c, r, f)
+			if cfg.IndexLibraries {
+				for _, r := range ruleFile.Rules {
+					ruleIndex.AddRule(cfg, r, ruleFile)
 				}
 			}
 		},
@@ -515,7 +515,7 @@ func runFixUpdate(wd string, cmd command, args []string) (err error) {
 	for _, v := range visits {
 		for i, r := range v.rules {
 			from := label.New(c.RepoName, v.pkgRel, r.Name())
-			if rslv := mrslv.Resolver(r, v.pkgRel); rslv != nil {
+			if rslv := metaResolver.Resolver(r, v.pkgRel); rslv != nil {
 				rslv.Resolve(v.c, ruleIndex, rc, r, v.imports[i], from)
 			}
 		}

@@ -37,7 +37,6 @@ type NestjsConfig struct {
 	CollectAllRoot     string
 	CollectAllSources  map[string]bool
 	Fix                bool
-	JSRoot             string
 	WebAssetSuffixes   map[string]bool
 	Quiet              bool
 	Verbose            bool
@@ -45,6 +44,15 @@ type NestjsConfig struct {
 	JestConfig         string
 	JestTestsPerShard  int
 	JestSize           string
+
+	Root                string
+	CollectWithTsConfig bool
+	PackageByDir        map[string]*Project
+	SourcePerPackage    map[string][]string
+	Monorepo            bool
+	NestCliPath         string
+	PackageJSONPath     string
+	IsNestjs            bool
 }
 
 type Visibility struct {
@@ -62,10 +70,13 @@ func (v *Visibility) Set(value string) error {
 
 type NestjsConfigs map[string]*NestjsConfig
 
+const DefaultPackageJsonPath = "package.json"
+
 func NewNestjsConfig() *NestjsConfig {
+	root := "."
 	return &NestjsConfig{
 		Enabled:     true,
-		PackageFile: "package.json",
+		PackageFile: DefaultPackageJsonPath,
 		NpmDependencies: struct {
 			Dependencies    map[string]string "json:\"dependencies\""
 			DevDependencies map[string]string "json:\"devDependencies\""
@@ -87,23 +98,131 @@ func NewNestjsConfig() *NestjsConfig {
 		CollectAllRoot:    "",
 		CollectAllSources: make(map[string]bool),
 		Fix:               false,
-		JSRoot:            "/",
+		Root:              root,
 		WebAssetSuffixes:  make(map[string]bool),
 		Quiet:             false,
 		Verbose:           false,
 		DefaultNpmLabel:   "//:node_modules/",
 		JestTestsPerShard: -1,
 		JestConfig:        "",
+
+		// New
+		NestCliPath:         fmt.Sprintf("%v/nest-cli.json", root),
+		CollectWithTsConfig: true,
+		PackageByDir:        make(map[string]*Project),
+		IsNestjs:            false,
+		SourcePerPackage:    map[string][]string{},
 	}
 }
 
 func newJsConfigsWithRootConfig() NestjsConfigs {
 	rootConfig := NewNestjsConfig()
-	rootConfig.JSRoot = "."
+	rootConfig.Root = "."
 	rootConfig.CollectedAssets = make(map[string]bool)
 	return NestjsConfigs{
 		"": rootConfig,
 	}
+}
+
+func (jsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config, ruleFile *rule.File, directive rule.Directive) {
+	values := strings.Split(directive.Value, " ")
+	if len(values) != 2 {
+		log.Fatalf(Err("failed to read directive %s: %s, expected 2 values", directive.Key, directive.Value))
+	}
+	jsConfig.PackageFile = values[0]
+	npmLabel := values[1]
+	if strings.HasPrefix(npmLabel, ":") {
+		npmLabel = labels.ParseRelative(npmLabel, ruleFile.Pkg).Format()
+	}
+	if !strings.HasSuffix(npmLabel, ":") && !strings.HasSuffix(npmLabel, "/") {
+		npmLabel += "/"
+	}
+
+	readBuildFilesDir := ""
+	if bazelGazelleConfig.ReadBuildFilesDir != "" {
+		readBuildFilesDir = path.Join(readBuildFilesDir, jsConfig.PackageFile)
+	} else {
+		readBuildFilesDir = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg, jsConfig.PackageFile)
+	}
+
+	data, err := os.ReadFile(readBuildFilesDir)
+	if err != nil {
+		log.Fatalf(Err("failed to open %s: %v", directive.Value, err))
+	}
+
+	// Read dependencies from file
+	newDeps := struct {
+		Dependencies    map[string]string "json:\"dependencies\""
+		DevDependencies map[string]string "json:\"devDependencies\""
+	}{
+		Dependencies:    make(map[string]string),
+		DevDependencies: make(map[string]string),
+	}
+	if err := json.Unmarshal(data, &newDeps); err != nil {
+		log.Fatalf(Err("failed to parse %s: %v", directive.Value, err))
+	}
+
+	// Store npmLabel in dependencies
+	for k := range newDeps.Dependencies {
+		jsConfig.NpmDependencies.Dependencies[k] = npmLabel
+	}
+	for k := range newDeps.DevDependencies {
+		jsConfig.NpmDependencies.DevDependencies[k] = npmLabel
+	}
+
+	jsConfig.PackageJSONPath = readBuildFilesDir
+}
+
+func (config *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Config, ruleFile *rule.File) {
+	readBuildFilesDir := ""
+	if bazelGazelleConfig.ReadBuildFilesDir != "" {
+		readBuildFilesDir = path.Join(readBuildFilesDir, ruleFile.Pkg, config.NestCliPath)
+	} else {
+		readBuildFilesDir = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg, config.NestCliPath)
+	}
+
+	data, err := os.ReadFile(readBuildFilesDir)
+	if err != nil {
+		// log.Fatal("Read nest-cli.json failed: ", err)
+		return
+	}
+
+	var nestCliConfig *NestCliConfig
+	err = json.Unmarshal(data, &nestCliConfig)
+	if err != nil {
+		// log.Fatal("Parse nest-cli failed: ", err)
+		return
+	}
+
+	config.Monorepo = nestCliConfig.Monorepo
+
+	if nestCliConfig.Projects == nil {
+		log.Fatal("Parse nest-cli failed: projects not found")
+	}
+
+	for projectName, project := range nestCliConfig.Projects {
+		// nestjs structure of monorepo
+		projectTypeDir := "apps"
+		if project.Type == "library" {
+			projectTypeDir = "libs"
+		} else if project.Type == "application" {
+			projectTypeDir = "apps"
+		}
+
+		dirPath := path.Join(config.Root, projectTypeDir, projectName)
+
+		// Set project name + relative path
+		nestCliConfig.Projects[projectName].Name = projectName
+		nestCliConfig.Projects[projectName].Rel = dirPath
+
+		// Set project in both root and child
+		config.PackageByDir[dirPath] = project
+		config.SourcePerPackage[dirPath] = []string{}
+	}
+
+	log.Printf("Parse nest-cli.json success: %v", config.PackageByDir)
+	config.NestCliPath = readBuildFilesDir
+	config.IsNestjs = true
 }
 
 // RegisterFlags registers command-line flags used by the extension. This
@@ -178,174 +297,145 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 		c.Exts[languageName] = newJsConfigsWithRootConfig()
 	}
 
-	jsConfigs := c.Exts[languageName].(NestjsConfigs)
+	nestjsConfigs := c.Exts[languageName].(NestjsConfigs)
 
-	jsConfig, exists := jsConfigs[rel]
+	nestjsConfig, exists := nestjsConfigs[rel]
 	if !exists {
-		parent := jsConfigs.ParentForPackage(rel)
-		jsConfig = parent.NewChild()
-		jsConfigs[rel] = jsConfig
+		parent := nestjsConfigs.ParentForPackage(rel)
+		nestjsConfig = parent.NewChild()
+		nestjsConfigs[rel] = nestjsConfig
 	}
 
 	// Read directives from existing file
-	if f != nil {
+	if f == nil {
+		return
+	}
 
-		for _, directive := range f.Directives {
+	for _, directive := range f.Directives {
 
-			switch directive.Key {
+		switch directive.Key {
 
-			case "js_extension":
-				switch directive.Value {
-				case "enabled":
-					jsConfig.Enabled = true
-				case "disabled":
-					jsConfig.Enabled = false
-				default:
-					log.Fatalf(Err("failed to read directive %s: %s, only \"enabled\", and \"disabled\" are valid", directive.Key, directive.Value))
-				}
-
-			case "js_lookup_types":
-				jsConfig.LookupTypes = readBoolDirective(directive)
-
-			case "js_fix":
-				jsConfig.Fix = readBoolDirective(directive)
-
-			case "js_package_file":
-				values := strings.Split(directive.Value, " ")
-				if len(values) != 2 {
-					log.Fatalf(Err("failed to read directive %s: %s, expected 2 values", directive.Key, directive.Value))
-				}
-				jsConfig.PackageFile = values[0]
-				npmLabel := values[1]
-				if strings.HasPrefix(npmLabel, ":") {
-					npmLabel = labels.ParseRelative(npmLabel, f.Pkg).Format()
-				}
-				if !strings.HasSuffix(npmLabel, ":") && !strings.HasSuffix(npmLabel, "/") {
-					npmLabel += "/"
-				}
-
-				data, err := os.ReadFile(path.Join(c.RepoRoot, f.Pkg, jsConfig.PackageFile))
-				if err != nil {
-					log.Fatalf(Err("failed to open %s: %v", directive.Value, err))
-				}
-
-				// Read dependencies from file
-				newDeps := struct {
-					Dependencies    map[string]string "json:\"dependencies\""
-					DevDependencies map[string]string "json:\"devDependencies\""
-				}{
-					Dependencies:    make(map[string]string),
-					DevDependencies: make(map[string]string),
-				}
-				if err := json.Unmarshal(data, &newDeps); err != nil {
-					log.Fatalf(Err("failed to parse %s: %v", directive.Value, err))
-				}
-
-				// Store npmLabel in dependencies
-				for k, _ := range newDeps.Dependencies {
-					jsConfig.NpmDependencies.Dependencies[k] = npmLabel
-				}
-				for k, _ := range newDeps.DevDependencies {
-					jsConfig.NpmDependencies.DevDependencies[k] = npmLabel
-				}
-
-			case "js_import_alias":
-				vals := strings.SplitN(directive.Value, " ", 2)
-				jsConfig.ImportAliases = append(jsConfig.ImportAliases, struct{ From, To string }{From: vals[0], To: strings.TrimSpace(vals[1])})
-
-				// Regenerate ImportAliasPattern
-				keyPatterns := make([]string, 0, len(jsConfig.ImportAliases))
-				for _, alias := range jsConfig.ImportAliases {
-					keyPatterns = append(keyPatterns, fmt.Sprintf("(^%s)", regexp.QuoteMeta(alias.From)))
-				}
-
-				var err error
-				if jsConfig.ImportAliasPattern, err = regexp.Compile(strings.Join(keyPatterns, "|")); err != nil {
-					log.Fatalf(Err("failed to parse %s: %v", directive.Value, err))
-				}
-
-			case "js_visibility":
-				jsConfig.Visibility.Set(directive.Value)
-			case "js_default_npm_label":
-				jsConfig.DefaultNpmLabel = directive.Value
-				if !strings.HasSuffix(jsConfig.DefaultNpmLabel, ":") && !strings.HasSuffix(jsConfig.DefaultNpmLabel, "/") {
-					jsConfig.DefaultNpmLabel += "/"
-				}
-
-			case "js_root":
-				jSRoot, err := filepath.Rel(".", f.Pkg)
-				if err != nil {
-					log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
-				} else {
-					jsConfig.JSRoot = jSRoot
-					jsConfig.CollectedAssets = make(map[string]bool)
-				}
-
-			case "js_collect_barrels":
-				jsConfig.CollectBarrels = readBoolDirective(directive)
-
-			case "js_aggregate_modules":
-				jsConfig.CollectBarrels = readBoolDirective(directive)
-
-			case "js_collect_web_assets":
-				jsConfig.CollectWebAssets = readBoolDirective(directive)
-
-			case "js_aggregate_web_assets":
-				jsConfig.CollectWebAssets = readBoolDirective(directive)
-
-			case "js_collect_all_assets":
-				jsConfig.CollectAllAssets = readBoolDirective(directive)
-
-			case "js_aggregate_all_assets":
-				jsConfig.CollectAllAssets = readBoolDirective(directive)
-
-			case "js_collect_all":
-				collectRoot, err := filepath.Rel(".", f.Pkg)
-				if err != nil {
-					log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
-				} else {
-					jsConfig.CollectAllRoot = collectRoot
-					jsConfig.CollectAll = true
-					jsConfig.CollectAllSources = make(map[string]bool)
-				}
-
-			case "js_jest_config":
-				jsConfig.JestConfig = labels.ParseRelative(directive.Value, f.Pkg).Format()
-
-			case "js_jest_test_per_shard":
-				jsConfig.JestTestsPerShard = readIntDirective(directive)
-
-			case "js_jest_size":
-				jsConfig.JestSize = directive.Value
-
-			case "js_web_asset":
-				vals := strings.SplitN(directive.Value, " ", 2)
-				suffixes := vals[0]
-				status := false
-				if len(vals) > 1 {
-					val, err := strconv.ParseBool(directive.Value)
-					if err != nil {
-						log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
-					}
-					status = val
-				}
-				for _, suffix := range strings.Split(suffixes, ",") {
-					jsConfig.WebAssetSuffixes[suffix] = status
-				}
-
-			case "js_quiet":
-				jsConfig.Quiet = readBoolDirective(directive)
-				if jsConfig.Quiet {
-					jsConfig.Verbose = false
-				}
-
-			case "js_verbose":
-				jsConfig.Verbose = readBoolDirective(directive)
-				if jsConfig.Verbose {
-					jsConfig.Quiet = false
-				}
+		case "js_extension":
+			switch directive.Value {
+			case "enabled":
+				nestjsConfig.Enabled = true
+			case "disabled":
+				nestjsConfig.Enabled = false
+			default:
+				log.Fatalf(Err("failed to read directive %s: %s, only \"enabled\", and \"disabled\" are valid", directive.Key, directive.Value))
 			}
+
+		case "js_lookup_types":
+			nestjsConfig.LookupTypes = readBoolDirective(directive)
+
+		case "js_fix":
+			nestjsConfig.Fix = readBoolDirective(directive)
+
+		case "js_package_file":
+			nestjsConfig.parsePackageJSON(c, f, directive)
+
+		case "js_import_alias":
+			vals := strings.SplitN(directive.Value, " ", 2)
+			nestjsConfig.ImportAliases = append(nestjsConfig.ImportAliases, struct{ From, To string }{From: vals[0], To: strings.TrimSpace(vals[1])})
+
+			// Regenerate ImportAliasPattern
+			keyPatterns := make([]string, 0, len(nestjsConfig.ImportAliases))
+			for _, alias := range nestjsConfig.ImportAliases {
+				keyPatterns = append(keyPatterns, fmt.Sprintf("(^%s)", regexp.QuoteMeta(alias.From)))
+			}
+
+			var err error
+			if nestjsConfig.ImportAliasPattern, err = regexp.Compile(strings.Join(keyPatterns, "|")); err != nil {
+				log.Fatalf(Err("failed to parse %s: %v", directive.Value, err))
+			}
+
+		case "js_visibility":
+			nestjsConfig.Visibility.Set(directive.Value)
+		case "js_default_npm_label":
+			nestjsConfig.DefaultNpmLabel = directive.Value
+			if !strings.HasSuffix(nestjsConfig.DefaultNpmLabel, ":") && !strings.HasSuffix(nestjsConfig.DefaultNpmLabel, "/") {
+				nestjsConfig.DefaultNpmLabel += "/"
+			}
+
+		case "js_root":
+			jSRoot, err := filepath.Rel(".", f.Pkg)
+			if err != nil {
+				log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
+			} else {
+				nestjsConfig.Root = jSRoot
+				nestjsConfig.CollectedAssets = make(map[string]bool)
+			}
+
+		case "js_collect_barrels":
+			nestjsConfig.CollectBarrels = readBoolDirective(directive)
+
+		case "js_aggregate_modules":
+			nestjsConfig.CollectBarrels = readBoolDirective(directive)
+
+		case "js_collect_web_assets":
+			nestjsConfig.CollectWebAssets = readBoolDirective(directive)
+
+		case "js_aggregate_web_assets":
+			nestjsConfig.CollectWebAssets = readBoolDirective(directive)
+
+		case "js_collect_all_assets":
+			nestjsConfig.CollectAllAssets = readBoolDirective(directive)
+
+		case "js_aggregate_all_assets":
+			nestjsConfig.CollectAllAssets = readBoolDirective(directive)
+
+		case "js_collect_all":
+			collectRoot, err := filepath.Rel(".", f.Pkg)
+			if err != nil {
+				log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
+			} else {
+				nestjsConfig.CollectAllRoot = collectRoot
+				nestjsConfig.CollectAll = true
+				nestjsConfig.CollectAllSources = make(map[string]bool)
+			}
+
+		case "js_jest_config":
+			nestjsConfig.JestConfig = labels.ParseRelative(directive.Value, f.Pkg).Format()
+
+		case "js_jest_test_per_shard":
+			nestjsConfig.JestTestsPerShard = readIntDirective(directive)
+
+		case "js_jest_size":
+			nestjsConfig.JestSize = directive.Value
+
+		case "js_web_asset":
+			vals := strings.SplitN(directive.Value, " ", 2)
+			suffixes := vals[0]
+			status := false
+			if len(vals) > 1 {
+				val, err := strconv.ParseBool(directive.Value)
+				if err != nil {
+					log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
+				}
+				status = val
+			}
+			for _, suffix := range strings.Split(suffixes, ",") {
+				nestjsConfig.WebAssetSuffixes[suffix] = status
+			}
+
+		case "js_quiet":
+			nestjsConfig.Quiet = readBoolDirective(directive)
+			if nestjsConfig.Quiet {
+				nestjsConfig.Verbose = false
+			}
+
+		case "js_verbose":
+			nestjsConfig.Verbose = readBoolDirective(directive)
+			if nestjsConfig.Verbose {
+				nestjsConfig.Quiet = false
+			}
+		case "nest_cli_path":
+			nestjsConfig.NestCliPath = directive.Value
 		}
+	}
+
+	if nestjsConfig.Root == rel {
+		nestjsConfig.parseNestCliJSON(*c, f)
 	}
 }
 
@@ -499,7 +589,7 @@ func (parent *NestjsConfig) NewChild() *NestjsConfig {
 	child.JestSize = parent.JestSize
 	child.JestConfig = parent.JestConfig
 
-	child.JSRoot = parent.JSRoot
+	child.Root = parent.Root
 	child.WebAssetSuffixes = make(map[string]bool) // copy map
 	for k, v := range parent.WebAssetSuffixes {
 		child.WebAssetSuffixes[k] = v
@@ -507,6 +597,8 @@ func (parent *NestjsConfig) NewChild() *NestjsConfig {
 	child.Quiet = parent.Quiet
 	child.Verbose = parent.Verbose
 	child.DefaultNpmLabel = parent.DefaultNpmLabel
+	child.IsNestjs = parent.IsNestjs
+	child.PackageByDir = parent.PackageByDir
 
 	return child
 }

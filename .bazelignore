@@ -1,0 +1,9 @@
+vendor
+.git
+.vscode
+.yarn
+bazel-out
+coverage
+data
+.aspect
+.github

@@ -1,0 +1,4 @@
+{
+  "name": "@app/user",
+  "main": "src/index.js"
+}

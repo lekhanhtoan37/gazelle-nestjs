@@ -12,13 +12,19 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd",
-      // "args": [
-      //   "--logger-dev=true",
-      //   "--logger-type=default",
-      //   "--config-file=../conf/conf.toml",
-      //   "--broker-addr=0.0.0.0"
-      // ],
-      "console": "internalConsole",
+      "args": [
+        "-mode=print",
+        "-lang=nestjs",
+        "../examples_v2",
+        // "../examples/apps/api",
+        // "../examples/apps/scheduler",
+        // "../examples/libs/auth",
+        // "../examples/libs/user"
+        // "-experimental_read_build_files_dir=../examples",
+        // "-experimental_write_build_files_dir=../examples"
+        // "-repo_root=../examples"
+      ],
+      "console": "integratedTerminal",
       "cwd": "${workspaceFolder}/cmd"
     },
   ]
