@@ -25,34 +25,46 @@ type NestjsConfig struct {
 		Dependencies    map[string]string `json:"dependencies"`
 		DevDependencies map[string]string `json:"devDependencies"`
 	}
-	LookupTypes        bool
-	ImportAliases      []struct{ From, To string }
-	ImportAliasPattern *regexp.Regexp
-	Visibility         Visibility
-	CollectBarrels     bool
-	CollectWebAssets   bool
-	CollectAllAssets   bool
-	CollectedAssets    map[string]bool
-	CollectAll         bool
-	CollectAllRoot     string
-	CollectAllSources  map[string]bool
-	Fix                bool
-	WebAssetSuffixes   map[string]bool
-	Quiet              bool
-	Verbose            bool
-	DefaultNpmLabel    string
-	JestConfig         string
-	JestTestsPerShard  int
-	JestSize           string
+	LookupTypes            bool
+	ImportAliases          []struct{ From, To string }
+	ImportAliasPattern     *regexp.Regexp
+	Visibility             Visibility
+	CollectBarrels         bool
+	CollectWebAssets       bool
+	CollectAllAssets       bool
+	CollectedAssets        map[string]bool
+	CollectAll             bool
+	CollectAllRoot         string
+	CollectAllSources      map[string]bool
+	Fix                    bool
+	WebAssetSuffixes       map[string]bool
+	Quiet                  bool
+	Verbose                bool
+	DefaultNpmLabel        string
+	JestConfigRelativePath string
+	JestTestsPerShard      int
+	JestSize               string
 
+	// Nestjs
+	RootPkg             string
 	Root                string
 	CollectWithTsConfig bool
 	PackageByDir        map[string]*Project
-	SourcePerPackage    map[string][]string
+	SourcePerProject    map[string]map[string]bool
 	Monorepo            bool
 	NestCliPath         string
 	PackageJSONPath     string
 	IsNestjs            bool
+	CompilerOptions     *CompilerOptions
+	Transpiler          NestTranspiler
+	RootTsConfig        *TsConfig
+	PnpmLockFilePath    string
+
+	// Jest
+	jestConfigPath string
+	jestConfig     *JestConfig
+
+	IsIgnoreE2E bool
 }
 
 type Visibility struct {
@@ -90,46 +102,97 @@ func NewNestjsConfig() *NestjsConfig {
 		Visibility: Visibility{
 			Labels: []string{},
 		},
-		CollectBarrels:    false,
-		CollectWebAssets:  false,
-		CollectAllAssets:  false,
-		CollectedAssets:   make(map[string]bool),
-		CollectAll:        false,
-		CollectAllRoot:    "",
-		CollectAllSources: make(map[string]bool),
-		Fix:               false,
-		Root:              root,
-		WebAssetSuffixes:  make(map[string]bool),
-		Quiet:             false,
-		Verbose:           false,
-		DefaultNpmLabel:   "//:node_modules/",
-		JestTestsPerShard: -1,
-		JestConfig:        "",
+		CollectBarrels:         false,
+		CollectWebAssets:       false,
+		CollectAllAssets:       false,
+		CollectedAssets:        make(map[string]bool),
+		CollectAll:             false,
+		CollectAllRoot:         "",
+		CollectAllSources:      make(map[string]bool),
+		Fix:                    false,
+		RootPkg:                root,
+		Root:                   root,
+		WebAssetSuffixes:       make(map[string]bool),
+		Quiet:                  false,
+		Verbose:                false,
+		DefaultNpmLabel:        "//:node_modules",
+		JestTestsPerShard:      -1,
+		JestConfigRelativePath: "",
 
 		// New
 		NestCliPath:         fmt.Sprintf("%v/nest-cli.json", root),
 		CollectWithTsConfig: true,
 		PackageByDir:        make(map[string]*Project),
 		IsNestjs:            false,
-		SourcePerPackage:    map[string][]string{},
+		SourcePerProject:    make(map[string]map[string]bool),
+		RootTsConfigFile:    "tsconfig.json",
+		PnpmLockFilePath:    "pnpm-lock.yaml",
+
+		IsIgnoreE2E: true,
 	}
 }
 
 func newJsConfigsWithRootConfig() NestjsConfigs {
 	rootConfig := NewNestjsConfig()
-	rootConfig.Root = "."
+	rootConfig.RootPkg = "."
 	rootConfig.CollectedAssets = make(map[string]bool)
 	return NestjsConfigs{
 		"": rootConfig,
 	}
 }
 
-func (jsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config, ruleFile *rule.File, directive rule.Directive) {
+func (nestjsConfig *NestjsConfig) parseRootTsConfig() {
+	if nestjsConfig.RootTsConfigFile == "" {
+		return
+	}
+
+	tsConfigPath := path.Join(nestjsConfig.Root, nestjsConfig.RootTsConfigFile)
+	data, err := os.ReadFile(tsConfigPath)
+	if err != nil {
+		log.Printf("Read tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err)
+		return
+	}
+
+	var tsConfig *TsConfig
+	err = json.Unmarshal(data, &tsConfig)
+	if err != nil {
+		log.Printf("Parse tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err)
+		return
+	}
+
+	nestjsConfig.RootTsConfig = tsConfig
+}
+
+func (nestjsConfig *NestjsConfig) parseJestConfig() {
+	// jest in package.json
+	if nestjsConfig.jestConfigPath == nestjsConfig.PackageJSONPath {
+		data, err := os.ReadFile(nestjsConfig.jestConfigPath)
+		if err != nil {
+			log.Printf(Err("failed to open %s: %v\n", nestjsConfig.jestConfigPath, err))
+			return
+		}
+
+		var wrappedJestConfig *struct {
+			Jest JestConfig "json:\"jest\""
+		}
+		err = json.Unmarshal(data, &wrappedJestConfig)
+		if err != nil {
+			log.Printf(Err("failed to parse %s: %v\n", nestjsConfig.jestConfigPath, err))
+			return
+		}
+
+		nestjsConfig.jestConfig = &wrappedJestConfig.Jest
+	} else {
+		// TODO: Support jest.config.js OR jest.config.ts
+	}
+}
+
+func (nestjsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config, ruleFile *rule.File, directive rule.Directive) {
 	values := strings.Split(directive.Value, " ")
 	if len(values) != 2 {
 		log.Fatalf(Err("failed to read directive %s: %s, expected 2 values", directive.Key, directive.Value))
 	}
-	jsConfig.PackageFile = values[0]
+	nestjsConfig.PackageFile = values[0]
 	npmLabel := values[1]
 	if strings.HasPrefix(npmLabel, ":") {
 		npmLabel = labels.ParseRelative(npmLabel, ruleFile.Pkg).Format()
@@ -138,14 +201,14 @@ func (jsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config
 		npmLabel += "/"
 	}
 
-	readBuildFilesDir := ""
-	if bazelGazelleConfig.ReadBuildFilesDir != "" {
-		readBuildFilesDir = path.Join(readBuildFilesDir, jsConfig.PackageFile)
-	} else {
-		readBuildFilesDir = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg, jsConfig.PackageFile)
+	rootDir := bazelGazelleConfig.ReadBuildFilesDir
+	if bazelGazelleConfig.ReadBuildFilesDir == "" {
+		rootDir = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg)
 	}
 
-	data, err := os.ReadFile(readBuildFilesDir)
+	// Read package.json
+	packageJSONPath := path.Join(rootDir, nestjsConfig.PackageFile)
+	data, err := os.ReadFile(packageJSONPath)
 	if err != nil {
 		log.Fatalf(Err("failed to open %s: %v", directive.Value, err))
 	}
@@ -164,37 +227,41 @@ func (jsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config
 
 	// Store npmLabel in dependencies
 	for k := range newDeps.Dependencies {
-		jsConfig.NpmDependencies.Dependencies[k] = npmLabel
+		nestjsConfig.NpmDependencies.Dependencies[k] = npmLabel
 	}
 	for k := range newDeps.DevDependencies {
-		jsConfig.NpmDependencies.DevDependencies[k] = npmLabel
+		nestjsConfig.NpmDependencies.DevDependencies[k] = npmLabel
 	}
 
-	jsConfig.PackageJSONPath = readBuildFilesDir
+	nestjsConfig.PackageJSONPath = packageJSONPath
+	nestjsConfig.jestConfigPath = nestjsConfig.PackageJSONPath
+	nestjsConfig.PnpmLockFilePath = path.Join(rootDir, nestjsConfig.PnpmLockFilePath)
 }
 
-func (config *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Config, ruleFile *rule.File) {
-	readBuildFilesDir := ""
+func (nestjsConfig *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Config, ruleFile *rule.File) {
+	var root string
 	if bazelGazelleConfig.ReadBuildFilesDir != "" {
-		readBuildFilesDir = path.Join(readBuildFilesDir, ruleFile.Pkg, config.NestCliPath)
+		root = path.Join(bazelGazelleConfig.ReadBuildFilesDir, ruleFile.Pkg)
+		nestjsConfig.Root = root
 	} else {
-		readBuildFilesDir = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg, config.NestCliPath)
+		root = path.Join(bazelGazelleConfig.RepoRoot, ruleFile.Pkg)
+		nestjsConfig.Root = root
 	}
 
-	data, err := os.ReadFile(readBuildFilesDir)
+	data, err := os.ReadFile(path.Join(root, nestjsConfig.NestCliPath))
 	if err != nil {
-		// log.Fatal("Read nest-cli.json failed: ", err)
+		log.Print(Warn("Read nest-cli.json failed: ", err))
 		return
 	}
 
 	var nestCliConfig *NestCliConfig
 	err = json.Unmarshal(data, &nestCliConfig)
 	if err != nil {
-		// log.Fatal("Parse nest-cli failed: ", err)
+		log.Print(Warn("Parse nest-cli failed: ", err))
 		return
 	}
 
-	config.Monorepo = nestCliConfig.Monorepo
+	nestjsConfig.Monorepo = nestCliConfig.Monorepo
 
 	if nestCliConfig.Projects == nil {
 		log.Fatal("Parse nest-cli failed: projects not found")
@@ -203,26 +270,52 @@ func (config *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Config, r
 	for projectName, project := range nestCliConfig.Projects {
 		// nestjs structure of monorepo
 		projectTypeDir := "apps"
+		visibility := Visibility{Labels: []string{}}
 		if project.Type == "library" {
 			projectTypeDir = "libs"
+			visibility = Visibility{Labels: []string{"//visibility:public"}}
 		} else if project.Type == "application" {
 			projectTypeDir = "apps"
 		}
 
-		dirPath := path.Join(config.Root, projectTypeDir, projectName)
+		dirPath := path.Join(nestjsConfig.RootPkg, projectTypeDir, projectName)
 
 		// Set project name + relative path
 		nestCliConfig.Projects[projectName].Name = projectName
 		nestCliConfig.Projects[projectName].Rel = dirPath
 
+		if nestCliConfig.Projects[projectName].CompilerOptions.TsConfigPath != "" {
+			nestCliConfig.Projects[projectName].TsConfigRel = nestCliConfig.Projects[projectName].CompilerOptions.TsConfigPath
+			nestCliConfig.Projects[projectName].TsConfigPath = path.Join(nestjsConfig.RootPkg, nestCliConfig.Projects[projectName].TsConfigRel)
+			nestCliConfig.Projects[projectName].ParseTsConfig(root)
+		}
+
 		// Set project in both root and child
-		config.PackageByDir[dirPath] = project
-		config.SourcePerPackage[dirPath] = []string{}
+		nestjsConfig.PackageByDir[dirPath] = project
+		if nestjsConfig.SourcePerProject[dirPath] == nil {
+			nestjsConfig.SourcePerProject[dirPath] = make(map[string]bool)
+		}
+		nestjsConfig.Visibility = visibility
 	}
 
-	log.Printf("Parse nest-cli.json success: %v", config.PackageByDir)
-	config.NestCliPath = readBuildFilesDir
-	config.IsNestjs = true
+	log.Printf("Parse nest-cli.json success: %v", nestjsConfig.PackageByDir)
+	nestjsConfig.NestCliPath = path.Join(root, nestjsConfig.NestCliPath)
+	nestjsConfig.CompilerOptions = nestCliConfig.CompilerOptions
+	nestjsConfig.IsNestjs = true
+
+	// Transpiler
+	if nestjsConfig.CompilerOptions.Webpack {
+		nestjsConfig.Transpiler = webpack
+
+		// TODO: Support webpack
+		log.Fatalf("Webpack is not supported yet\n")
+	} else {
+		if _, err := os.Stat(path.Join(nestjsConfig.Root, ".swcrc")); err == nil {
+			nestjsConfig.Transpiler = swc
+		} else {
+			nestjsConfig.Transpiler = tsc
+		}
+	}
 }
 
 // RegisterFlags registers command-line flags used by the extension. This
@@ -362,7 +455,7 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			if err != nil {
 				log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
 			} else {
-				nestjsConfig.Root = jSRoot
+				nestjsConfig.RootPkg = jSRoot
 				nestjsConfig.CollectedAssets = make(map[string]bool)
 			}
 
@@ -395,7 +488,8 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			}
 
 		case "js_jest_config":
-			nestjsConfig.JestConfig = labels.ParseRelative(directive.Value, f.Pkg).Format()
+			nestjsConfig.JestConfigRelativePath = labels.ParseRelative(directive.Value, f.Pkg).Format()
+			nestjsConfig.jestConfigPath = path.Join(f.Pkg, nestjsConfig.JestConfigRelativePath)
 
 		case "js_jest_test_per_shard":
 			nestjsConfig.JestTestsPerShard = readIntDirective(directive)
@@ -431,12 +525,30 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			}
 		case "nest_cli_path":
 			nestjsConfig.NestCliPath = directive.Value
+		case "nest_ts_config":
+			nestjsConfig.RootTsConfigFile = directive.Value
 		}
 	}
 
-	if nestjsConfig.Root == rel {
-		nestjsConfig.parseNestCliJSON(*c, f)
+	if nestjsConfig.RootPkg != rel {
+		return
 	}
+
+	var root string
+	if c.ReadBuildFilesDir != "" {
+		root = path.Join(c.ReadBuildFilesDir, f.Pkg)
+	} else {
+		root = path.Join(c.RepoRoot, f.Pkg)
+	}
+
+	nestjsConfig.Root = root
+
+	if rel == nestjsConfig.RootPkg {
+		nestjsConfig.parseRootTsConfig()
+	}
+
+	nestjsConfig.parseNestCliJSON(*c, f)
+	nestjsConfig.parseJestConfig()
 }
 
 var jsTestExtensions = []string{
@@ -479,7 +591,6 @@ func extensionPattern(extensions []string) *regexp.Regexp {
 
 var indexFilePattern *regexp.Regexp
 var trimExtPattern *regexp.Regexp
-var reactFilePattern *regexp.Regexp
 
 func init() {
 	escaped := make([]string, len(tsExtensions)+len(jsExtensions))
@@ -496,7 +607,6 @@ func init() {
 			strings.Join(escaped, "|"),
 		),
 	)
-	reactFilePattern = regexp.MustCompile(`\.(jsx|tsx)$`)
 }
 
 func trimExt(baseName string) string {
@@ -508,11 +618,7 @@ func trimExt(baseName string) string {
 }
 
 func isBarrelFile(baseName string) bool {
-	return indexFilePattern.MatchString(baseName) && !isReactFile(baseName)
-}
-
-func isReactFile(baseName string) bool {
-	return reactFilePattern.MatchString(baseName)
+	return indexFilePattern.MatchString(baseName)
 }
 
 func readBoolDirective(directive rule.Directive) bool {
@@ -583,13 +689,16 @@ func (parent *NestjsConfig) NewChild() *NestjsConfig {
 
 	child.CollectAll = parent.CollectAll
 	child.CollectAllRoot = parent.CollectAllRoot
-	child.CollectAllSources = parent.CollectAllSources // Copy reference, reinitialized on change to CollectAll
+
+	child.SourcePerProject = parent.SourcePerProject // copy map
+	child.CollectAllSources = make(map[string]bool)  // Copy reference, reinitialized on change to CollectAll
 
 	child.JestTestsPerShard = parent.JestTestsPerShard
 	child.JestSize = parent.JestSize
-	child.JestConfig = parent.JestConfig
+	child.JestConfigRelativePath = parent.JestConfigRelativePath
 
 	child.Root = parent.Root
+	child.RootPkg = parent.RootPkg
 	child.WebAssetSuffixes = make(map[string]bool) // copy map
 	for k, v := range parent.WebAssetSuffixes {
 		child.WebAssetSuffixes[k] = v
@@ -599,6 +708,16 @@ func (parent *NestjsConfig) NewChild() *NestjsConfig {
 	child.DefaultNpmLabel = parent.DefaultNpmLabel
 	child.IsNestjs = parent.IsNestjs
 	child.PackageByDir = parent.PackageByDir
+
+	child.jestConfigPath = parent.jestConfigPath
+	child.jestConfig = parent.jestConfig
+	child.IsIgnoreE2E = parent.IsIgnoreE2E
+	child.PackageJSONPath = parent.PackageJSONPath
+	child.PnpmLockFilePath = parent.PnpmLockFilePath
+
+	child.RootTsConfigFile = parent.RootTsConfigFile
+	child.Transpiler = parent.Transpiler
+	child.RootTsConfig = parent.RootTsConfig
 
 	return child
 }

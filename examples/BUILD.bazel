@@ -1,25 +1,12 @@
+load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@npm//:next/package_json.bzl", next_bin = "bin")
-load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+
+# load("@npm//:next/package_json.bzl", next_bin = "bin")
+load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle_binary")
 
 npm_link_all_packages(name = "node_modules")
-
-gazelle(
-    name = "gazelle",
-    args = ["-build_file_name=BUILD.bazel"],
-    gazelle = ":gazelle_bin",
-    visibility = ["//visibility:private"],
-)
-
-gazelle_binary(
-    name = "gazelle_bin",
-    languages = DEFAULT_LANGUAGES + [
-        "@com_github_benchsci_rules_nodejs_gazelle//gazelle:gazelle",
-    ],
-    visibility = ["//visibility:private"],
-)
 
 # gazelle:js_package_file package.json //:node_modules
 # gazelle:js_collect_barrels
@@ -27,11 +14,24 @@ gazelle_binary(
 # gazelle:js_collect_all_assets
 # gazelle:js_root
 
-# gazelle:map_kind jest_test jest_test //bazel:jest_test.bzl
-# gazelle:map_kind ts_project ts_project //bazel:ts_project.bzl
+# gazelle:map_kind jest_test jest_test @aspect_rules_jest//jest:defs.bzl
+# gazelle:map_kind ts_project ts_project @aspect_rules_ts//ts:defs.bzl
 # gazelle:map_kind web_assets web_assets //bazel:web_assets.bzl
 
 js_library(
     name = "package_json",
     srcs = ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+copy_to_bin(
+    name = "examples_package_json",
+    srcs = ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+ts_config(
+    name = "examples_tsconfig",
+    src = "tsconfig.json",
+    visibility = ["//visibility:public"],
 )

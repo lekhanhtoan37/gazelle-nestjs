@@ -4,15 +4,9 @@ load("@aspect_rules_swc//swc:defs.bzl", "swc")
 load("@bazel_skylib//lib:partial.bzl", "partial")
 load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 
-js_library(
-    name = "package_json",
-    srcs = ["package.json"],
-    visibility = ["//visibility:public"],
-)
-
 ts_project(
-    name = "auth_ts_test",
-    srcs = ["src/auth.service.spec.ts"],
+    name = "api_ts_test",
+    srcs = ["src/api.controller.spec.ts"],
     data = ["//:node_modules/@nestjs/testing"],
     declaration = True,
     extends = "//:examples_tsconfig",
@@ -25,17 +19,17 @@ ts_project(
     tsconfig = {},
     visibility = ["//visibility:public"],
     deps = [
-        ":auth",
+        ":api",
         "//:node_modules/@nestjs/testing",
     ],
 )
 
 jest_test(
-    name = "auth_test",
+    name = "api_test",
     config = "//:examples_package_json",
     data = [
-        ":auth",
-        ":auth_ts_test",
+        ":api",
+        ":api_ts_test",
         "//:node_modules/@nestjs/testing",
         "//:node_modules/@types/jest",
         "//:node_modules/jest",
@@ -45,13 +39,18 @@ jest_test(
 )
 
 ts_project(
-    name = "auth",
+    name = "api",
     srcs = [
-        "src/auth.module.ts",
-        "src/auth.service.ts",
-        "src/index.ts",
+        "src/api.controller.ts",
+        "src/api.module.ts",
+        "src/api.service.ts",
+        "src/main.ts",
     ],
-    data = ["//:node_modules/@nestjs/common"],
+    data = [
+        "//:node_modules/@app/auth",
+        "//:node_modules/@nestjs/common",
+        "//:node_modules/@nestjs/core",
+    ],
     declaration = True,
     extends = "//:examples_tsconfig",
     incremental = True,
@@ -60,7 +59,17 @@ ts_project(
         swc,
         swcrc = "//:.swcrc",
     ),
-    tsconfig = ":tsconfig.lib.json",
+    tsconfig = ":tsconfig.app.json",
     visibility = ["//visibility:public"],
-    deps = ["//:node_modules/@nestjs/common"],
+    deps = [
+        "//:node_modules/@app/auth",
+        "//:node_modules/@nestjs/common",
+        "//:node_modules/@nestjs/core",
+    ],
+)
+
+js_library(
+    name = "package_json",
+    srcs = ["package.json"],
+    visibility = ["//visibility:public"],
 )

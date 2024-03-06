@@ -139,6 +139,7 @@ func (lang *NestJS) Imports(c *config.Config, r *rule.Rule, f *rule.File) []reso
 		}
 	}
 
+	log.Print(Info("Indexing %s, imports: %+v", r.Name(), importSpecs))
 	return importSpecs
 }
 
@@ -158,6 +159,8 @@ func (*NestJS) Embeds(r *rule.Rule, from label.Label) []label.Label {
 // language-specific rules and heuristics.
 // https://www.typescriptlang.org/docs/handbook/module-resolution.html#classic
 func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, _imports interface{}, from label.Label) {
+
+	log.Print(Info("Resolving %s, imports: %+v", r.Name(), _imports))
 
 	nestjsConfigs := c.Exts[languageName].(NestjsConfigs)
 	nestjsConfig := nestjsConfigs[from.Pkg]
@@ -213,10 +216,11 @@ func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Re
 			if strings.HasPrefix(name, "@") && len(s) >= 2 {
 				name += "/" + s[1]
 			}
-			depSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+
+			depSet[fmt.Sprintf("%s/%s", npmLabel, name)] = true
 			if !devDep {
 				// Runtime dependency
-				dataSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+				dataSet[fmt.Sprintf("%s/%s", npmLabel, name)] = true
 			}
 
 			if nestjsConfig.LookupTypes && r.Kind() == "ts_project" {
@@ -257,6 +261,7 @@ func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Re
 
 	// Add in additional jest dependencies
 	if r.Kind() == getKind(c, "jest_test") {
+
 		// All deps are also data for jest_test rules.
 		for name := range depSet {
 			dataSet[name] = true
@@ -275,11 +280,17 @@ func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Re
 			}
 		}
 
-		packageLocation := nestjsConfig.Root
+		isExistDepsAttributeInJestRule := lang.Kinds()["jest_test"].NonEmptyAttrs["deps"]
+		// Ignore deps attribute if it is not exist in jest_test rule
+		if !isExistDepsAttributeInJestRule {
+			depSet = make(map[string]bool)
+		}
+
+		packageLocation := nestjsConfig.RootPkg
 		if packageLocation == "." {
 			packageLocation = ""
+			dataSet[fmt.Sprintf("//%s:package_json", packageLocation)] = true
 		}
-		dataSet[fmt.Sprintf("//%s:package_json", packageLocation)] = true
 	}
 
 	deps := []string{}
@@ -301,6 +312,8 @@ func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Re
 	} else {
 		r.DelAttr("data")
 	}
+
+	log.Print(Info("Resolved %s, imports: %+v, deps: %+v, data: %+v", r.Name(), _imports, deps, data))
 }
 
 func (lang *NestJS) resolveWalkParents(name string, depSet map[string]bool, dataSet map[string]bool, c *config.Config, ix *resolve.RuleIndex, rc *repo.RemoteCache, r *rule.Rule, from label.Label) {
@@ -365,7 +378,7 @@ func (lang *NestJS) resolveWalkParents(name string, depSet map[string]bool, data
 
 		}
 
-		if nestjsConfig.Root == localDir || localDir == "." {
+		if nestjsConfig.RootPkg == localDir || localDir == "." {
 			// unable to resolve import
 			if !nestjsConfig.Quiet {
 				log.Print(Err("[%s] import %v not found", from.Abs(from.Repo, from.Pkg).String(), name))

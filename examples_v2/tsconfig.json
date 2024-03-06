@@ -30,6 +30,6 @@
       "@app/user/*": [
         "libs/user/src/*"
       ]
-    },
+    }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "workbench.colorTheme": "Palenight (Mild Contrast)",
+  "workbench.colorTheme": "Panda Syntax",
   "go.goroot": "/opt/homebrew/opt/go@1.21/libexec",
   "go.gopath": "/Users/toanlk/go",
   "go.toolsEnvVars": {

@@ -1,4 +1,4 @@
 {
   "name": "@app/auth",
-  "main": "src/index.js"
+  "main": "index"
 }

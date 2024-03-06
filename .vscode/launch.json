@@ -13,9 +13,10 @@
       "mode": "auto",
       "program": "${workspaceFolder}/cmd",
       "args": [
-        "-mode=print",
+        // "-mode=print",
+        "-mode=fix",
         "-lang=nestjs",
-        "../examples_v2",
+        "../examples",
         // "../examples/apps/api",
         // "../examples/apps/scheduler",
         // "../examples/libs/auth",

@@ -1,6 +1,66 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_swc//swc:defs.bzl", "swc")
+load("@bazel_skylib//lib:partial.bzl", "partial")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 
 js_library(
     name = "package_json",
     srcs = ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+ts_project(
+    name = "user_ts_test",
+    srcs = ["src/user.service.spec.ts"],
+    data = ["//:node_modules/@nestjs/testing"],
+    declaration = True,
+    extends = "//:examples_tsconfig",
+    incremental = True,
+    source_map = True,
+    transpiler = partial.make(
+        swc,
+        swcrc = "//:.swcrc",
+    ),
+    tsconfig = {},
+    visibility = ["//visibility:public"],
+    deps = [
+        ":user",
+        "//:node_modules/@nestjs/testing",
+    ],
+)
+
+jest_test(
+    name = "user_test",
+    config = "//:examples_package_json",
+    data = [
+        ":user",
+        ":user_ts_test",
+        "//:node_modules/@nestjs/testing",
+        "//:node_modules/@types/jest",
+        "//:node_modules/jest",
+    ],
+    node_modules = "//:node_modules",
+    visibility = ["//visibility:public"],
+)
+
+ts_project(
+    name = "user",
+    srcs = [
+        "src/index.ts",
+        "src/user.module.ts",
+        "src/user.service.ts",
+    ],
+    data = ["//:node_modules/@nestjs/common"],
+    declaration = True,
+    extends = "//:examples_tsconfig",
+    incremental = True,
+    source_map = True,
+    transpiler = partial.make(
+        swc,
+        swcrc = "//:.swcrc",
+    ),
+    tsconfig = ":tsconfig.lib.json",
+    visibility = ["//visibility:public"],
+    deps = ["//:node_modules/@nestjs/common"],
 )

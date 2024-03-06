@@ -3,7 +3,6 @@ package nestjs
 import (
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -55,6 +54,10 @@ var swcRules = rule.LoadInfo{
 	Name:    "@aspect_rules_swc//swc:defs.bzl",
 	Symbols: []string{"swc"},
 }
+var bazelSkylibRules = rule.LoadInfo{
+	Name:    "@bazel_skylib//lib:partial.bzl",
+	Symbols: []string{"partial"},
+}
 
 var managedRulesSet map[string]bool
 
@@ -86,6 +89,7 @@ func (lang *NestJS) Loads() []rule.LoadInfo {
 		copyToBinRules,
 		npmLinkAllPackagesRules,
 		swcRules,
+		bazelSkylibRules,
 	}
 }
 
@@ -119,6 +123,14 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 	}
 
 	project := cfg.PackageByDir[args.Rel]
+
+	// // Reset the collected sources for another package
+	// defer func() {
+	// 	if project != nil {
+	// 		cfg.CollectAllSources = make(map[string]bool)
+	// 	}
+	// }()
+
 	if project == nil {
 		for _, proj := range cfg.PackageByDir {
 			relativePath, err := filepath.Rel(proj.Rel, args.Rel)
@@ -141,34 +153,9 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 					"/",
 				)
 
-				cfg.CollectAllSources[path] = true
-				// }
+				cfg.SourcePerProject[proj.Rel][path] = true
 			}
 		}
-	}
-
-	// FIXME: Fix for 1 BUILD file per projects
-	if cfg.CollectAll && cfg.CollectAllRoot != args.Rel {
-
-		for _, project := range cfg.PackageByDir {
-			fmt.Printf("INFO: Generating rules for project root %v\n", project.Root)
-			// if project.Root == args.Rel {
-			// collect all files in this directory for use in parent rules
-			for _, fileName := range args.RegularFiles {
-				path := strings.TrimPrefix(
-					strings.TrimPrefix(
-						path.Join(args.Rel, fileName),
-						cfg.CollectAllRoot,
-					),
-					"/",
-				)
-
-				cfg.CollectAllSources[path] = true
-				// }
-			}
-		}
-
-		return language.GenerateResult{}
 	}
 
 	pkgName := PkgName(args.Rel)
@@ -195,7 +182,7 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 	}
 
 	// add "jest_test" rule(s)
-	generatedTestRules, generatedTestImports := lang.genJestTest(args, cfg, jestSources)
+	generatedTestRules, generatedTestImports := lang.genJestTest(args, cfg, project, jestSources, tsSources)
 	generatedRules = append(generatedRules, generatedTestRules...)
 	generatedImports = append(generatedImports, generatedTestImports...)
 
@@ -206,33 +193,15 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 		generatedImports = append(generatedImports, generatedTSImports...)
 	}
 
-	// if len(jsSources) > 0 && cfg.CollectAll {
-	// 	// add combined "ts_project" rule with js sources
-	// 	generatedTSRules, generatedTSImports := lang.genRules(
-	// 		args,
-	// 		cfg,
-	// 		isBarrel,
-	// 		isJSRoot,
-	// 		pkgName,
-	// 		append(tsSources, jsSources...),
-	// 		false,
-	// 		"ts_project",
-	// 	)
-	// 	generatedRules = append(generatedRules, generatedTSRules...)
-	// 	generatedImports = append(generatedImports, generatedTSImports...)
+	if cfg.RootPkg == args.Rel {
+		rules, imports := lang.genPackageJSONRule(args, cfg)
+		generatedRules = append(generatedRules, rules...)
+		generatedImports = append(generatedImports, imports...)
 
-	// } else {
-	// 	// add "ts_project" rule(s)
-	// 	generatedTSRules, generatedTSImports := lang.genTsProject(args, cfg, tsSources)
-	// 	generatedRules = append(generatedRules, generatedTSRules...)
-	// 	generatedImports = append(generatedImports, generatedTSImports...)
-
-	// 	// add "js_library" rule(s)
-	// 	appendTSExt = false
-	// 	generatedJSRules, generatedJSImports := lang.genRules(args, cfg, isBarrel, isJSRoot, pkgName, jsSources, appendTSExt, "js_library")
-	// 	generatedRules = append(generatedRules, generatedJSRules...)
-	// 	generatedImports = append(generatedImports, generatedJSImports...)
-	// }
+		rules, imports = lang.genTSConfigRule(args, cfg.RootPkg, []string{})
+		generatedRules = append(generatedRules, rules...)
+		generatedImports = append(generatedImports, imports...)
+	}
 
 	// add "web_assets" rule(s)
 	generatedWARules, generatedWAImports := lang.genWebAssets(args, webAssetsSet, cfg)
@@ -267,7 +236,7 @@ func (lang *NestJS) collectSources(
 
 	isBarrel := false
 
-	absJSRoot := path.Join(args.Config.RepoRoot, nestjsConfig.Root)
+	absJSRoot := path.Join(args.Config.RepoRoot, nestjsConfig.RootPkg)
 	isJSRoot := absJSRoot == args.Dir
 
 	alwaysIgnoredFiles := map[string]bool{
@@ -286,10 +255,14 @@ func (lang *NestJS) collectSources(
 
 		managedFiles[baseName] = true
 
+		if nestjsConfig.IsIgnoreE2E && len(nestjsConfig.jestConfig.getE2eTestPattern().FindStringSubmatch(baseName)) > 0 {
+			continue
+		}
+
 		// TS & JS TEST
 		match := append(
-			jsTestExtensionsPattern.FindStringSubmatch(baseName),
-			tsTestExtensionsPattern.FindStringSubmatch(baseName)...)
+			nestjsConfig.jestConfig.getJsTestPattern().FindStringSubmatch(baseName),
+			nestjsConfig.jestConfig.getTsTestPattern().FindStringSubmatch(baseName)...)
 		if len(match) > 0 {
 			jestSources = append(jestSources, baseName)
 			continue
@@ -318,7 +291,6 @@ func (lang *NestJS) collectSources(
 		if lang.isWebAsset(nestjsConfig, baseName) {
 			webAssetsSet[baseName] = true
 		}
-
 	}
 
 	return jestSources,
@@ -353,7 +325,7 @@ func (lang *NestJS) gatherProjectFiles(allFiles []string, project *Project, nest
 		return allFiles
 	}
 
-	for file := range nestjsConfig.CollectAllSources {
+	for file := range nestjsConfig.SourcePerProject[project.Rel] {
 		allFiles = append(allFiles, file)
 	}
 
@@ -404,80 +376,34 @@ func (lang *NestJS) genPkgRule(args language.GenerateArgs, nestjsConfig *NestjsC
 	return nil
 }
 
-func (lang *NestJS) genJestTest(
-	args language.GenerateArgs,
-	jsConfig *NestjsConfig,
-	jestSources []string,
-) ([]*rule.Rule, []interface{}) {
+func (lang *NestJS) genPackageJSONRule(args language.GenerateArgs, config *NestjsConfig) ([]*rule.Rule, []interface{}) {
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 
-	if !jsConfig.CollectAll {
-		// Add each test as an individual rule
-		for _, baseName := range jestSources {
-			// match := append(
-			// 	jsTestExtensionsPattern.FindStringSubmatch(baseName),
-			// 	tsTestExtensionsPattern.FindStringSubmatch(baseName)...)
-			filePath := path.Join(args.Dir, baseName)
-			extension := "ts"
-			// extension := match[0]
+	// For jest tests
+	r := rule.NewRule(getKind(args.Config, "copy_to_bin"), config.RootPkg+"_package_json")
+	r.SetAttr("srcs", []string{config.PackageFile})
+	r.SetAttr("visibility", []string{"//visibility:public"})
 
-			ruleName := strings.TrimSuffix(baseName, extension) + ".test"
-			r := rule.NewRule(
-				getKind(args.Config, "jest_test"),
-				ruleName,
-			)
-			r.SetAttr("srcs", []string{baseName})
+	generatedRules = append(generatedRules, r)
+	generatedImports = append(generatedImports, &noImports)
+	return generatedRules, generatedImports
+}
 
-			imports, jestTestCount := readFileAndParse(filePath, "")
-
-			var collectedSnapshots []string
-			snapshotFile, err := os.Stat(path.Join(args.Dir, "__snapshots__", baseName+".snap"))
-			if err == nil && snapshotFile.Mode().IsRegular() {
-				collectedSnapshots = append(
-					collectedSnapshots,
-					path.Join("__snapshots__", baseName+".snap"),
-				)
-			}
-
-			lang.addJestAttributes(args, jsConfig, ruleName, r, jestTestCount, collectedSnapshots)
-
-			generatedRules = append(generatedRules, r)
-			generatedImports = append(generatedImports, imports)
-		}
-
-	} else if len(jestSources) > 0 {
-		// Add all tests as a single rule
-		jestTestCount := 0
-		var allImports []imports
-		for _, baseName := range jestSources {
-			filePath := path.Join(args.Dir, baseName)
-			relativePart := path.Dir(baseName)
-			imps, tCount := readFileAndParse(filePath, relativePart)
-			jestTestCount += tCount
-			allImports = append(allImports, *imps)
-		}
-		imports := flattenImports(allImports)
-
-		pkgName := PkgName(args.Rel)
-		ruleName := fmt.Sprintf("%s_test", pkgName)
-		r := rule.NewRule(
-			getKind(args.Config, "jest_test"),
-			ruleName,
-		)
-
-		var collectedSnapshots []string
-		snapshotDir, err := os.Stat(path.Join(args.Dir, "__snapshots__"))
-		if err == nil && snapshotDir.Mode().IsDir() {
-			collectedSnapshots = append(collectedSnapshots, "__snapshots__")
-		}
-
-		r.SetAttr("srcs", jestSources)
-		lang.addJestAttributes(args, jsConfig, ruleName, r, jestTestCount, collectedSnapshots)
-		generatedRules = append(generatedRules, r)
-		generatedImports = append(generatedImports, imports)
+func (lang *NestJS) genTSConfigRule(args language.GenerateArgs, suffixName string, visibilities []string) ([]*rule.Rule, []interface{}) {
+	generatedRules := make([]*rule.Rule, 0)
+	generatedImports := make([]interface{}, 0)
+	// For jest tests
+	r := rule.NewRule(getKind(args.Config, "ts_config"), suffixName+"_tsconfig")
+	r.SetAttr("src", "tsconfig.json")
+	if len(visibilities) > 0 {
+		r.SetAttr("visibility", visibilities)
+	} else {
+		r.SetAttr("visibility", []string{"//visibility:public"})
 	}
 
+	generatedImports = append(generatedImports, &noImports)
+	generatedRules = append(generatedRules, r)
 	return generatedRules, generatedImports
 }
 
@@ -486,43 +412,6 @@ type testRuleArgs struct {
 	extension string
 	filePath  string
 	baseName  string
-}
-
-func (lang *NestJS) addJestAttributes(
-	args language.GenerateArgs,
-	jsConfig *NestjsConfig,
-	baseName string,
-	r *rule.Rule,
-	jestTestCount int,
-	collectedSnapshots []string,
-) {
-	if jsConfig.JestConfig == "" && !jsConfig.Quiet {
-		log.Print(
-			Warn(
-				"[%s/%s] no config for jest_test, use gazelle:js_jest_config directive",
-				args.Rel,
-				baseName,
-			),
-		)
-	}
-	r.SetAttr("config", jsConfig.JestConfig)
-	if jsConfig.JestTestsPerShard > 0 {
-		shardCount := int(math.Ceil(float64(jestTestCount) / float64(jsConfig.JestTestsPerShard)))
-		if shardCount > 1 {
-			r.SetAttr("shard_count", shardCount)
-		}
-	}
-	if jsConfig.JestSize != "" {
-		r.SetAttr("size", jsConfig.JestSize)
-	}
-	if len(jsConfig.Visibility.Labels) > 0 {
-		r.SetAttr("visibility", jsConfig.Visibility.Labels)
-	}
-	if len(collectedSnapshots) > 0 {
-		r.SetAttr("snapshots", collectedSnapshots)
-	} else {
-		r.DelAttr("snapshots")
-	}
 }
 
 func (lang *NestJS) genRules(
@@ -938,44 +827,6 @@ func (lang *NestJS) pruneManagedRules(
 		if _, ok := managedRulesSet[r.Kind()]; ok {
 			// It is managed, and wasn't generated, so delete it
 			r.Delete()
-		}
-	}
-}
-
-// Fix repairs deprecated usage of language-specific rules in f. This is
-// called before the file is indexed. Unless c.ShouldFix is true, fixes
-// that delete or rename rules should not be performed.Í
-func (*NestJS) Fix(c *config.Config, f *rule.File) {
-
-	nestJSConfigs := c.Exts[languageName].(NestjsConfigs)
-	nestJSConfig := nestJSConfigs[f.Pkg]
-
-	if c.ShouldFix || nestJSConfig.Fix {
-		for _, r := range f.Rules {
-			// delete deprecated js_import rule
-			if r.Kind() == "js_import" {
-				r.Delete()
-			}
-			// delete deprecated ts_library rule
-			if r.Kind() == "ts_library" {
-				r.Delete()
-			}
-			// delete deprecated ts_definition rule
-			if r.Kind() == "ts_definition" {
-				r.Delete()
-			}
-		}
-		for _, l := range f.Loads {
-
-			if l.Has("js_import") {
-				l.Remove("js_import")
-			}
-			if l.Has("ts_library") {
-				l.Remove("ts_library")
-			}
-			if l.Has("ts_definition") {
-				l.Remove("ts_definition")
-			}
 		}
 	}
 }

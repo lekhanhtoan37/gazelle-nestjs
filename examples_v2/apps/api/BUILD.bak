@@ -1,0 +1,74 @@
+load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
+load("@aspect_rules_swc//swc:defs.bzl", "swc")
+load("@bazel_skylib//lib:partial.bzl", "partial")
+load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
+
+ts_project(
+    name = "api",
+    srcs = [
+        "src/api.controller.ts",
+        "src/api.module.ts",
+        "src/api.service.ts",
+        "src/main.ts",
+    ],
+    data = [
+        "//:node_modules/@nestjs/common",
+        "//:node_modules/@nestjs/core",
+    ],
+    declaration = True,
+    extends = "//:examples_v2_tsconfig",
+    incremental = True,
+    source_map = True,
+    transpiler = partial.make(
+        swc,
+        swcrc = "//:.swcrc",
+    ),
+    tsconfig = ":tsconfig.app.json",
+    deps = [
+        "//:node_modules/@nestjs/common",
+        "//:node_modules/@nestjs/core",
+    ],
+)
+
+ts_project(
+    name = "test_lib_auth",
+    srcs = glob(
+        include=["src/**/*.spec.ts"],
+    ),
+    declaration = True,
+    transpiler = partial.make(
+        swc,
+        swcrc = "//:.swcrc",
+    ),
+    validate = False,
+    visibility = ["//visibility:private"],
+    tsconfig = {},
+    extends = "//:examples_v2_tsconfig",
+    deps = [
+        ":api",
+
+        "//:node_modules/@nestjs/testing",
+        "//:node_modules/jest",
+        "//:node_modules/@types/jest",
+        "//:node_modules/ts-jest",
+    ]
+)
+
+jest_test(
+    name = "api_test",
+    # srcs = ["src/api.controller.spec.ts"],
+    config = "//:examples_v2_package_json",
+    data = [
+        ":api",
+        ":test_lib_auth",
+        "//:node_modules/@nestjs/testing",
+        "//:node_modules/@types/jest",
+        "//:node_modules/jest",
+    ],
+    # deps = [
+    #     "//:node_modules/@nestjs/testing",
+    #     "//:node_modules/@types/jest",
+    #     "//:node_modules/jest",
+    # ],
+    node_modules = "//:node_modules",
+)
