@@ -1,4 +1,3 @@
-load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("@aspect_rules_swc//swc:defs.bzl", "swc")
 load("@bazel_skylib//lib:partial.bzl", "partial")
@@ -7,7 +6,13 @@ load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
 ts_project(
     name = "api_ts_test",
     srcs = ["src/api.controller.spec.ts"],
-    data = ["//:node_modules/@nestjs/testing"],
+    data = [
+        ":api",
+        "//:node_modules/@app/auth",
+        "//:node_modules/@nestjs/testing",
+        "//:node_modules/@types/jest",
+        "//:node_modules/jest",
+    ],
     declaration = True,
     extends = "//:examples_tsconfig",
     incremental = True,
@@ -20,7 +25,10 @@ ts_project(
     visibility = ["//visibility:public"],
     deps = [
         ":api",
+        "//:node_modules/@app/auth",
         "//:node_modules/@nestjs/testing",
+        "//:node_modules/@types/jest",
+        "//:node_modules/jest",
     ],
 )
 
@@ -30,6 +38,7 @@ jest_test(
     data = [
         ":api",
         ":api_ts_test",
+        "//:node_modules/@app/auth",
         "//:node_modules/@nestjs/testing",
         "//:node_modules/@types/jest",
         "//:node_modules/jest",
@@ -66,10 +75,4 @@ ts_project(
         "//:node_modules/@nestjs/common",
         "//:node_modules/@nestjs/core",
     ],
-)
-
-js_library(
-    name = "package_json",
-    srcs = ["package.json"],
-    visibility = ["//visibility:public"],
 )

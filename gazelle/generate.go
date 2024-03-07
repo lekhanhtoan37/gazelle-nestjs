@@ -12,6 +12,7 @@ import (
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/language"
 	"github.com/bazelbuild/bazel-gazelle/rule"
+	bzl "github.com/bazelbuild/buildtools/build"
 )
 
 type imports struct {
@@ -39,7 +40,7 @@ var jestRules = rule.LoadInfo{
 	Symbols: []string{"jest_test"},
 }
 var npmPackageRules = rule.LoadInfo{
-	Name:    "@//aspect_rules_js//npm:defs.bzl",
+	Name:    "@aspect_rules_js//npm:defs.bzl",
 	Symbols: []string{"npm_package"},
 }
 var copyToBinRules = rule.LoadInfo{
@@ -212,6 +213,14 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 	generatedAWARules, generatedAWAImports := lang.genAllAssets(args, isJSRoot, cfg)
 	generatedRules = append(generatedRules, generatedAWARules...)
 	generatedImports = append(generatedImports, generatedAWAImports...)
+
+	if isJSRoot {
+		if _, err := os.Stat(path.Join(args.Config.RepoRoot, cfg.RootPkg, ".swcrc")); err == nil {
+			rules, imports := lang.generateExportFiles(args, []string{".swcrc"})
+			generatedRules = append(generatedRules, rules...)
+			generatedImports = append(generatedImports, imports...)
+		}
+	}
 
 	existingRules := lang.readExistingRules(args, true)
 	lang.pruneManagedRules(existingRules, generatedRules)
@@ -829,4 +838,20 @@ func (lang *NestJS) pruneManagedRules(
 			r.Delete()
 		}
 	}
+}
+
+func (lang *NestJS) generateExportFiles(
+	args language.GenerateArgs,
+	files []string,
+) ([]*rule.Rule, []interface{}) {
+	generatedImports := make([]interface{}, 0)
+
+	r := rule.NewRule(getKind(args.Config, "exports_files"), "")
+	r.AddArg(&bzl.ListExpr{
+		List: []bzl.Expr{&bzl.StringExpr{Value: ".swcrc"}},
+	})
+	r.SetAttr("visibility", []string{"//visibility:public"})
+	// Generate export files
+
+	return []*rule.Rule{r}, append(generatedImports, &noImports)
 }

@@ -1,14 +1,9 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@aspect_rules_ts//ts:defs.bzl", "ts_project")
 load("@aspect_rules_swc//swc:defs.bzl", "swc")
 load("@bazel_skylib//lib:partial.bzl", "partial")
 load("@aspect_rules_jest//jest:defs.bzl", "jest_test")
-load("@aspect_rules_js//js:defs.bzl", "js_library")
-
-js_library(
-    name = "package_json",
-    srcs = ["package.json"],
-    visibility = ["//visibility:public"],
-)
+load("@aspect_rules_js//npm:defs.bzl", "npm_package")
 
 ts_project(
     name = "user_ts_test",
@@ -23,10 +18,12 @@ ts_project(
         swcrc = "//:.swcrc",
     ),
     tsconfig = {},
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
     deps = [
-        ":user",
+        ":user_lib",
         "//:node_modules/@nestjs/testing",
+        "//:node_modules/@types/jest",
+        "//:node_modules/jest",
     ],
 )
 
@@ -34,18 +31,24 @@ jest_test(
     name = "user_test",
     config = "//:examples_package_json",
     data = [
-        ":user",
+        ":user_lib",
         ":user_ts_test",
         "//:node_modules/@nestjs/testing",
         "//:node_modules/@types/jest",
         "//:node_modules/jest",
     ],
     node_modules = "//:node_modules",
+    visibility = ["//visibility:private"],
+)
+
+js_library(
+    name = "package_json",
+    srcs = ["package.json"],
     visibility = ["//visibility:public"],
 )
 
 ts_project(
-    name = "user",
+    name = "user_lib",
     srcs = [
         "src/index.ts",
         "src/user.module.ts",
@@ -61,6 +64,14 @@ ts_project(
         swcrc = "//:.swcrc",
     ),
     tsconfig = ":tsconfig.lib.json",
-    visibility = ["//visibility:public"],
     deps = ["//:node_modules/@nestjs/common"],
+)
+
+npm_package(
+    name = "user",
+    srcs = [
+        "package.json",
+        ":user_lib",
+    ],
+    visibility = ["//visibility:public"],
 )

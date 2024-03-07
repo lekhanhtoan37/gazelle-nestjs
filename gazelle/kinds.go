@@ -92,5 +92,11 @@ func (*NestJS) Kinds() map[string]rule.KindInfo {
 				"data": true,
 			},
 		},
+		"exports_files": {
+			MatchAny:       false,
+			NonEmptyAttrs:  map[string]bool{},
+			ResolveAttrs:   map[string]bool{},
+			MergeableAttrs: map[string]bool{},
+		},
 	}
 }

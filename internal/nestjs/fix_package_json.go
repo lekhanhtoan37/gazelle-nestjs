@@ -5,9 +5,6 @@ import (
 	"log"
 	"os"
 	"strings"
-
-	"github.com/bazelbuild/bazel-gazelle/config"
-	"github.com/bazelbuild/bazel-gazelle/rule"
 )
 
 type packageJSON struct {
@@ -81,43 +78,3 @@ func UpdateRootPackageJSON(rootPackageJSONPath string, internalPkg map[string]bo
 
 	return nil
 }
-
-// func RegeneratePnpmLockFile(pnpmPath string) error {
-// 	output, err := exec.Command("pnpm install").Output()
-// 	if err != nil {
-// 		log.Printf("Regenerate pnpm-lock.yaml failed: %v\n", err)
-// 		return err
-// 	}
-
-// 	log.Printf("Regenerate pnpm-lock.yaml: %v\n", string(output))
-// 	return nil
-// }
-
-func fixPackageJson(c *config.Config, f *rule.File) error {
-	return nil
-}
-
-func writePackageJson(packagePath string, path string) error {
-	if packagePath == "" {
-		return nil
-	}
-
-	return nil
-}
-
-// func fixFile(c *config.Config, f *rule.File) error {
-// 	newContent := f.Format()
-// 	if bytes.Equal(f.Content, newContent) {
-// 		return nil
-// 	}
-// 	outPath := findOutputPath(c, f)
-// 	if err := os.MkdirAll(filepath.Dir(outPath), 0o777); err != nil {
-// 		return err
-// 	}
-
-// 	f.Content = newContent
-// 	if getUpdateConfig(c).print0 {
-// 		fmt.Printf("%s\x00", outPath)
-// 	}
-// 	return nil
-// }

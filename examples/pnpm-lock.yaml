@@ -11,6 +11,9 @@ importers:
       '@app/auth':
         specifier: workspace:*
         version: link:libs/auth
+      '@app/user':
+        specifier: workspace:*
+        version: link:libs/user
       '@nestjs/common':
         specifier: ^10.0.0
         version: 10.3.3(reflect-metadata@0.1.14)(rxjs@7.8.1)
@@ -110,6 +113,8 @@ importers:
         version: 5.1.3
 
   libs/auth: {}
+
+  libs/user: {}
 
 packages:
 

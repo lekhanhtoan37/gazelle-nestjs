@@ -1,4 +1,4 @@
-import { AuthService } from '@app/auth/auth.service'
+import { AuthService } from '@app/auth'
 import { Controller, Get } from '@nestjs/common'
 import { SchedulerService } from './scheduler.service'
 

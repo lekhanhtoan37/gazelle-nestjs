@@ -58,6 +58,10 @@ func (lang *NestJS) genJestTest(
 
 		generatedRules = append(generatedRules, r)
 		generatedImports = append(generatedImports, imports)
+
+		npmPackageRules, npmPackageImports := genNpmPackage(args, project, tsSources)
+		generatedRules = append(generatedRules, npmPackageRules...)
+		generatedImports = append(generatedImports, npmPackageImports...)
 	}
 
 	return generatedRules, generatedImports
@@ -108,4 +112,26 @@ func addJestAttributes(
 	} else {
 		r.DelAttr("snapshots")
 	}
+}
+
+func genNpmPackage(args language.GenerateArgs, project *Project, tsSources []string) ([]*rule.Rule, []interface{}) {
+	generatedRules := make([]*rule.Rule, 0)
+	generatedImports := make([]interface{}, 0)
+	if project == nil || project.Type == "application" {
+		return generatedRules, generatedImports
+	}
+
+	r := rule.NewRule(getKind(args.Config, "npm_package"), project.Name)
+	generatedRules = append(generatedRules, r)
+
+	files := []string{"package.json"}
+	r.SetAttr("srcs", files)
+	r.SetAttr("visibility", []string{"//visibility:public"})
+	imports := imports{set: make(map[string]bool)}
+	for _, rel := range tsSources {
+		imports.set[rel] = true
+	}
+	generatedImports = append(generatedImports, &imports)
+
+	return generatedRules, generatedImports
 }

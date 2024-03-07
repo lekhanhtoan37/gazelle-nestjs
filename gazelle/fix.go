@@ -2,6 +2,7 @@ package nestjs
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -79,8 +80,21 @@ func (*NestJS) Fix(c *config.Config, f *rule.File) {
 				continue
 			}
 
-			packageJSON := internal_nestjs.NewPackageJSON(pkg, project.EntryFile)
-			err := internal_nestjs.Fix(fullpath, packageJSON)
+			path := filepath.Join(project.SourceRoot, project.EntryFile)
+			relativePath, err := filepath.Rel(project.Root, path)
+			if err != nil {
+				// handle error
+				continue
+			}
+			prefix := ".." + string(os.PathSeparator)
+			isChildPkg := !strings.HasPrefix(relativePath, prefix) && relativePath != ".."
+
+			if !isChildPkg {
+				continue
+			}
+
+			packageJSON := internal_nestjs.NewPackageJSON(pkg, relativePath)
+			err = internal_nestjs.Fix(fullpath, packageJSON)
 			if err != nil {
 				// handle error
 				continue

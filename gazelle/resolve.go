@@ -293,6 +293,44 @@ func (lang *NestJS) Resolve(c *config.Config, ix *resolve.RuleIndex, rc *repo.Re
 		}
 	}
 
+	// Add in additional jest dependencies for ts_project for testing
+	if r.Kind() == getKind(c, "ts_project") && strings.HasSuffix(r.Name(), "_test") {
+		// All deps are also data for jest_test rules.
+		for name := range depSet {
+			dataSet[name] = true
+		}
+		for name, npmLabel := range nestjsConfig.NpmDependencies.DevDependencies {
+			if name == "jest-cli" || name == "jest-junit" {
+				continue
+			}
+			if strings.HasPrefix(name, "@types/jest") {
+				depSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+				dataSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+			}
+			if strings.HasPrefix(name, "jest") {
+				depSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+				dataSet[fmt.Sprintf("%s%s", npmLabel, name)] = true
+			}
+		}
+	}
+
+	if r.Kind() == getKind(c, "npm_package") {
+		// All deps are also data for npm_package rules.
+		data := []string{}
+		for name := range depSet {
+			data = append(data, name)
+		}
+
+		if len(r.AttrStrings("srcs")) > 0 {
+			data = append(data, r.AttrStrings("srcs")...)
+			r.SetAttr("srcs", data)
+		} else {
+			r.SetAttr("srcs", data)
+		}
+
+		depSet = make(map[string]bool)
+	}
+
 	deps := []string{}
 	for dep := range depSet {
 		deps = append(deps, dep)

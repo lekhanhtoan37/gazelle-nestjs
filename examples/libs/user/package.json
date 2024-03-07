@@ -1,4 +1,4 @@
 {
   "name": "@app/user",
-  "main": "index"
+  "main": "src/index"
 }

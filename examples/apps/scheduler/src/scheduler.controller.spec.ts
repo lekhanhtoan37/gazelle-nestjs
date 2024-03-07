@@ -1,12 +1,14 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { SchedulerController } from './scheduler.controller';
-import { SchedulerService } from './scheduler.service';
+import { AuthModule } from '@app/auth'
+import { Test, TestingModule } from '@nestjs/testing'
+import { SchedulerController } from './scheduler.controller'
+import { SchedulerService } from './scheduler.service'
 
 describe('SchedulerController', () => {
   let schedulerController: SchedulerController;
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
+      imports: [AuthModule],
       controllers: [SchedulerController],
       providers: [SchedulerService],
     }).compile();

@@ -54,7 +54,11 @@ func (lang *NestJS) genTsProject(
 		moduleImports := flattenImports(imports)
 
 		// Use lists to make a rule
-		moduleRule := rule.NewRule(getKind(args.Config, "ts_project"), project.Name)
+		ruleName := project.Name
+		if project.Type == "library" {
+			ruleName = ruleName + "_lib"
+		}
+		moduleRule := rule.NewRule(getKind(args.Config, "ts_project"), ruleName)
 		moduleRule.SetAttr("srcs", tsSources)
 		if len(nestjsConfig.Visibility.Labels) > 0 {
 			moduleRule.SetAttr("visibility", nestjsConfig.Visibility.Labels)

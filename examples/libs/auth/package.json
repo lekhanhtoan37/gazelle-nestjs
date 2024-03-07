@@ -1,4 +1,4 @@
 {
   "name": "@app/auth",
-  "main": "index"
+  "main": "src/index"
 }
