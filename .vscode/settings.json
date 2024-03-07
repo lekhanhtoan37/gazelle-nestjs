@@ -1,0 +1,46 @@
+{
+  "workbench.colorTheme": "Panda Syntax",
+  "go.goroot": "/opt/homebrew/opt/go@1.21/libexec",
+  "go.gopath": "/Users/toanlk/go",
+  "go.toolsEnvVars": {
+    "GOFLAGS": "-mod=vendor",
+    "GOPRIVATE": "github.com,gitlab.com/36-hc/hcgo"
+  },
+  "protoc": {
+    "options": ["--proto_path=${workspaceFolder}/example/grpc-server/proto"],
+  },
+  "emeraldwalk.runonsave": {
+    "commands": [],
+    "runOnSave": false
+  },
+  "makefile.launchConfigurations": [
+    {
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "makefile.makefilePath": "~/Makefile",
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#d1733c",
+    "activityBar.background": "#d1733c",
+    "activityBar.foreground": "#15202b",
+    "activityBar.inactiveForeground": "#15202b99",
+    "activityBarBadge.background": "#186735",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "commandCenter.border": "#e7e7e799",
+    "sash.hoverBorder": "#d1733c",
+    "statusBar.background": "#b05b2a",
+    "statusBar.foreground": "#e7e7e7",
+    "statusBarItem.hoverBackground": "#d1733c",
+    "statusBarItem.remoteBackground": "#b05b2a",
+    "statusBarItem.remoteForeground": "#e7e7e7",
+    "titleBar.activeBackground": "#b05b2a",
+    "titleBar.activeForeground": "#e7e7e7",
+    "titleBar.inactiveBackground": "#b05b2a99",
+    "titleBar.inactiveForeground": "#e7e7e799",
+    "debugConsole.infoForeground": "#569CD6",
+    "debugConsole.errorForeground": "#F44747",
+    "debugConsole.warningForeground": "#CD9731",
+    "debugConsole.sourceForeground": "#ffffff"
+  },
+  "peacock.color": "#b05b2a"
+}
