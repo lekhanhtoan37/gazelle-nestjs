@@ -1,5 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
+# gazelle:prefix github.com/lekhanhtoan37/gazelle-nestjs
 gazelle(
     name = "gazelle",
     gazelle = ":gazelle_bin",
@@ -23,20 +24,16 @@ gazelle(
 gazelle_binary(
     name = "test_gazelle_bin",
     languages = DEFAULT_LANGUAGES + [
-        "//gazelle:nestjs",
+        "//gazelle:gazelle",
     ],
     visibility = ["//visibility:public"],
 )
 
-# Gazelle configuration options.
-# See https://github.com/bazelbuild/bazel-gazelle#running-gazelle-with-bazel
-# gazelle:exclude bazel-out
-
 gazelle(
-    name = "update_go_deps",
+    name = "gazelle-update-repos",
     args = [
         "-from_file=go.mod",
-        "-to_macro=deps.bzl%gazelle_deps",
+        "-to_macro=deps.bzl%go_dependencies",
         "-prune",
     ],
     command = "update-repos",

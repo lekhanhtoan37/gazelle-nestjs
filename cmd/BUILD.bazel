@@ -1,0 +1,39 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "cmd_lib",
+    srcs = [
+        "diff.go",
+        "fix.go",
+        "fix_update.go",
+        "langs.go",
+        "main.go",
+        "meta_resolver.go",
+        "print.go",
+        "profiler.go",
+        "update_repos.go",
+    ],
+    importpath = "github.com/lekhanhtoan37/gazelle-nestjs/cmd",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//gazelle",
+        "//internal/module",
+        "//internal/wspace",
+        "@com_github_bazelbuild_bazel_gazelle//config",
+        "@com_github_bazelbuild_bazel_gazelle//flag",
+        "@com_github_bazelbuild_bazel_gazelle//label",
+        "@com_github_bazelbuild_bazel_gazelle//language",
+        "@com_github_bazelbuild_bazel_gazelle//merger",
+        "@com_github_bazelbuild_bazel_gazelle//repo",
+        "@com_github_bazelbuild_bazel_gazelle//resolve",
+        "@com_github_bazelbuild_bazel_gazelle//rule",
+        "@com_github_bazelbuild_bazel_gazelle//walk",
+        "@com_github_pmezard_go_difflib//difflib",
+    ],
+)
+
+go_binary(
+    name = "cmd",
+    embed = [":cmd_lib"],
+    visibility = ["//visibility:public"],
+)
