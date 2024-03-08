@@ -33,11 +33,11 @@ load("@aspect_rules_js//npm:repositories.bzl", "npm_translate_lock")
 
 npm_translate_lock(
     name = "npm",
-    verify_node_modules_ignored = "//:.bazelignore",
-    pnpm_lock = "//:pnpm-lock.yaml",
     data = ["//:package.json"],
-    update_pnpm_lock = True,
     npmrc = "//:.npmrc",
+    pnpm_lock = "//:pnpm-lock.yaml",
+    update_pnpm_lock = True,
+    verify_node_modules_ignored = "//:.bazelignore",
 )
 
 load("@npm//:repositories.bzl", "npm_repositories")
@@ -95,7 +95,6 @@ http_archive(
     url = "https://github.com/aspect-build/rules_jest/releases/download/v0.20.0/rules_jest-v0.20.0.tar.gz",
 )
 
-
 load("@aspect_rules_jest//jest:dependencies.bzl", "rules_jest_dependencies")
 
 rules_jest_dependencies()
@@ -118,10 +117,10 @@ http_archive(
     ],
 )
 
-
-
 http_archive(
     name = "com_github_lekhanhtoan37_gazelle_nestjs",
+    sha256 = "7f181f1b9ddf44bcb8812aac0a51163a846ff01cfba0809897ca66fafa66f9a6",
+    strip_prefix = "gazelle-nestjs-0.0.1",
     urls = [
         "https://github.com/lekhanhtoan37/gazelle-nestjs/archive/refs/tags/v0.0.1.tar.gz",
     ],
@@ -135,9 +134,13 @@ load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 # Else, dependencies declared by rules_go/gazelle will be used.
 # The first declaration of an external repository "wins".
 ############################################################
+load("//:deps.bzl", "go_dependencies")
+
+go_dependencies()
 
 go_rules_dependencies()
 
 go_register_toolchains(version = "1.21.6")
 
 gazelle_dependencies()
+
