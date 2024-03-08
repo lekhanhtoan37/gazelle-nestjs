@@ -12,7 +12,7 @@ type packageJSON struct {
 	Main string `json:"main"`
 }
 
-func NewPackageJSON(nameAlias string, main string) *packageJSON {
+func newPackageJSON(nameAlias string, main string) *packageJSON {
 	if main == "" {
 		log.Fatalf("main in pkg: %v is required", nameAlias)
 	}
@@ -23,8 +23,25 @@ func NewPackageJSON(nameAlias string, main string) *packageJSON {
 	}
 }
 
-func Fix(packageJSONPath string, packageJSON *packageJSON) error {
-	data, err := json.MarshalIndent(packageJSON, "", "  ")
+func fixPackageJSON(packageJSONPath string, _packageJSON *packageJSON) error {
+	oldPackageJSONData, err := os.ReadFile(packageJSONPath)
+	if err != nil {
+		log.Printf(Warn("Read file package.json: %v", err))
+		return err
+	}
+
+	var oldPackageJSON *packageJSON
+	err = json.Unmarshal(oldPackageJSONData, &oldPackageJSON)
+	if err != nil {
+		log.Printf(Warn("Parse file package.json: %v", err))
+		return err
+	}
+
+	if oldPackageJSON != nil && oldPackageJSON.Name == _packageJSON.Name && oldPackageJSON.Main == _packageJSON.Main {
+		return nil
+	}
+
+	data, err := json.MarshalIndent(_packageJSON, "", "  ")
 	if err != nil {
 		log.Fatalf("Error marshalling package.json: %v", err)
 		return err
@@ -38,7 +55,7 @@ func Fix(packageJSONPath string, packageJSON *packageJSON) error {
 	return nil
 }
 
-func UpdateRootPackageJSON(rootPackageJSONPath string, internalPkg map[string]bool) error {
+func updateRootPackageJSON(rootPackageJSONPath string, internalPkg map[string]bool) error {
 	data, err := os.ReadFile(rootPackageJSONPath)
 	if err != nil {
 		log.Printf("Read file package.json: %v\n", err)

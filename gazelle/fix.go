@@ -8,8 +8,6 @@ import (
 
 	"github.com/bazelbuild/bazel-gazelle/config"
 	"github.com/bazelbuild/bazel-gazelle/rule"
-
-	internal_nestjs "github.com/lekhanhtoan37/gazelle-nestjs/internal/nestjs"
 )
 
 // Fix repairs deprecated usage of language-specific rules in f. This is
@@ -58,7 +56,7 @@ func (*NestJS) Fix(c *config.Config, f *rule.File) {
 		internalPkg[pkg] = true
 	}
 
-	err := internal_nestjs.UpdateRootPackageJSON(nestJSConfig.PackageJSONPath, internalPkg)
+	err := updateRootPackageJSON(nestJSConfig.PackageJSONPath, internalPkg)
 	if err != nil {
 		// handle error
 	}
@@ -93,8 +91,8 @@ func (*NestJS) Fix(c *config.Config, f *rule.File) {
 				continue
 			}
 
-			packageJSON := internal_nestjs.NewPackageJSON(pkg, relativePath)
-			err = internal_nestjs.Fix(fullpath, packageJSON)
+			packageJSON := newPackageJSON(pkg, relativePath)
+			err = fixPackageJSON(fullpath, packageJSON)
 			if err != nil {
 				// handle error
 				continue
