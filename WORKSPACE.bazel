@@ -1,4 +1,4 @@
-module(
+workspace(
     name = "com_github_lekhanhtoan37_gazelle_nestjs"
 )
 

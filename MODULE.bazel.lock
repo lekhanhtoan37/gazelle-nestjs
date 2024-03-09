@@ -1,6 +1,6 @@
 {
   "lockFileVersion": 3,
-  "moduleFileHash": "c3ae73fa98abc4ec666ae5995c4b48c91e3e2b7e744a636d8120ed7ed095b731",
+  "moduleFileHash": "ad8ac5ebd11ea6cfc0cbba70f4d4d5cd7d1e96a3e4b7225aa52a942ed213d344",
   "flags": {
     "cmdRegistries": [
       "https://bcr.bazel.build/"
@@ -17,10 +17,10 @@
   },
   "moduleDepGraph": {
     "<root>": {
-      "name": "com_github_benchsci_rules_nodejs_gazelle",
-      "version": "0.0.0",
+      "name": "com_github_lekhanhtoan37_gazelle_nestjs",
+      "version": "v0.0.1",
       "key": "<root>",
-      "repoName": "com_github_benchsci_rules_nodejs_gazelle",
+      "repoName": "com_github_lekhanhtoan37_gazelle_nestjs",
       "executionPlatformsToRegister": [],
       "toolchainsToRegister": [],
       "extensionUsages": [
@@ -34,7 +34,9 @@
             "column": 24
           },
           "imports": {
-            "com_github_bazelbuild_buildtools": "com_github_bazelbuild_buildtools"
+            "com_github_bazelbuild_buildtools": "com_github_bazelbuild_buildtools",
+            "com_github_bazelbuild_bazel_gazelle": "com_github_bazelbuild_bazel_gazelle",
+            "com_github_pmezard_go_difflib": "com_github_pmezard_go_difflib"
           },
           "devImports": [],
           "tags": [
@@ -1087,9 +1089,9 @@
         "bzlTransitiveDigest": "bxCC2wkQKI2fVRS2z8qAkH7FpoBFV1H7+yyT3EXXdbU=",
         "accumulatedFileDigests": {
           "@@gazelle~0.34.0//:go.mod": "9ae159a385b2f244bbe964b9f91dbea6e7bd534e0b22e846655f241c65de2c49",
-          "@@//:go.mod": "11e33f2a76b1bb2b0c91c0f8b0979ebfaffbe330123cf5b532922725e7b92423",
+          "@@//:go.mod": "4852aa547646bd721f33b332a9e82dd0ac8c1f34ba2d890a9f4395d0f16f1461",
           "@@rules_go~0.42.0//:go.mod": "a7143f329c2a3e0b983ce74a96c0c25b0d0c59d236d75f7e1b069aadd988d55e",
-          "@@//:go.sum": "160b13ca8de15b9f8e11cfb9bba1267e9117d72cfc2b891c928cf4e3d8a0a416",
+          "@@//:go.sum": "1361186e063726fc7d60884c56e44ab0daf95a245c88a4776d9afb8e47b9e954",
           "@@gazelle~0.34.0//:go.sum": "7469786f3930030c430969cedae951e6947cb40f4a563dac94a350659c0fedc4",
           "@@rules_go~0.42.0//:go.sum": "022d36c9ebcc7b5dee1e9b85b3da9c9f3a529ee6f979946d66e4955b8d54614a"
         },
@@ -1360,8 +1362,8 @@
               "name": "gazelle~0.34.0~go_deps~bazel_gazelle_go_repository_config",
               "importpaths": {
                 "com_github_bazelbuild_bazel_gazelle": "github.com/bazelbuild/bazel-gazelle",
-                "com_github_pmezard_go_difflib": "github.com/pmezard/go-difflib",
                 "com_github_bazelbuild_buildtools": "github.com/bazelbuild/buildtools",
+                "com_github_pmezard_go_difflib": "github.com/pmezard/go-difflib",
                 "com_github_bmatcuk_doublestar_v4": "github.com/bmatcuk/doublestar/v4",
                 "org_golang_x_mod": "golang.org/x/mod",
                 "org_golang_x_sys": "golang.org/x/sys",
@@ -1441,6 +1443,7 @@
         "moduleExtensionMetadata": {
           "explicitRootModuleDirectDeps": [
             "com_github_bazelbuild_bazel_gazelle",
+            "com_github_bazelbuild_buildtools",
             "com_github_pmezard_go_difflib"
           ],
           "explicitRootModuleDirectDevDeps": [],

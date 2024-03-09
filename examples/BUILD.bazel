@@ -3,7 +3,7 @@ load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary
 gazelle(
     name = "gazelle",
     args = ["-build_file_name=BUILD.bazel"],
-    visibility = ["//visibility:private"],
+    visibility = ["//visibility:public"],
     gazelle = ":gazelle_nestjs",
 )
 
@@ -12,7 +12,7 @@ gazelle_binary(
     languages = DEFAULT_LANGUAGES + [
         "@com_github_lekhanhtoan37_gazelle_nestjs//gazelle:gazelle",
     ],
-    visibility = ["//visibility:private"],
+    visibility = ["//visibility:public"],
 )
 # gazelle:exclude **/node_modules
 # gazelle:js_package_file package.json :node_modules
