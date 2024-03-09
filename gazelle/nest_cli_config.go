@@ -58,14 +58,16 @@ func (p *Project) ParseTsConfig(cwd string) *TsConfig {
 	tsConfigPath := path.Join(cwd, p.TsConfigRel)
 	data, err := os.ReadFile(tsConfigPath)
 	if err != nil {
-		log.Printf("Parse tsconfig for project failed: %v, err: %v \n", p.Name, err)
+		log.Printf(Err("Parse tsconfig for project failed: %v, err: %v \n", p.Name, err))
 		return tsConfig
 	}
 
 	err = json.Unmarshal(data, &tsConfig)
 
 	if err != nil {
-		log.Printf("Parse tsconfig then unmarshal failed for project: %v, err: %v \n", p.Name, err)
+		log.Printf(
+			Err("Parse tsconfig then unmarshal failed for project: %v, err: %v \n", p.Name, err),
+		)
 		return tsConfig
 	}
 

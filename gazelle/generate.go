@@ -183,7 +183,13 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 	}
 
 	// add "jest_test" rule(s)
-	generatedTestRules, generatedTestImports := lang.genJestTest(args, cfg, project, jestSources, tsSources)
+	generatedTestRules, generatedTestImports := lang.genJestTest(
+		args,
+		cfg,
+		project,
+		jestSources,
+		tsSources,
+	)
 	generatedRules = append(generatedRules, generatedTestRules...)
 	generatedImports = append(generatedImports, generatedTestImports...)
 
@@ -262,19 +268,22 @@ func (lang *NestJS) collectSources(
 			continue
 		}
 
+		var match []string
 		managedFiles[baseName] = true
+		if nestjsConfig.jestConfig != nil {
+			if nestjsConfig.IsIgnoreE2E &&
+				len(nestjsConfig.jestConfig.getE2eTestPattern().FindStringSubmatch(baseName)) > 0 {
+				continue
+			}
 
-		if nestjsConfig.IsIgnoreE2E && len(nestjsConfig.jestConfig.getE2eTestPattern().FindStringSubmatch(baseName)) > 0 {
-			continue
-		}
-
-		// TS & JS TEST
-		match := append(
-			nestjsConfig.jestConfig.getJsTestPattern().FindStringSubmatch(baseName),
-			nestjsConfig.jestConfig.getTsTestPattern().FindStringSubmatch(baseName)...)
-		if len(match) > 0 {
-			jestSources = append(jestSources, baseName)
-			continue
+			// TS & JS TEST
+			match = append(
+				nestjsConfig.jestConfig.getJsTestPattern().FindStringSubmatch(baseName),
+				nestjsConfig.jestConfig.getTsTestPattern().FindStringSubmatch(baseName)...)
+			if len(match) > 0 {
+				jestSources = append(jestSources, baseName)
+				continue
+			}
 		}
 
 		// if the filename is like index.(jsx) then we assume we found a module
@@ -329,7 +338,11 @@ func (lang *NestJS) gatherFiles(args language.GenerateArgs, jsConfig *NestjsConf
 	return allFiles
 }
 
-func (lang *NestJS) gatherProjectFiles(allFiles []string, project *Project, nestjsConfig *NestjsConfig) []string {
+func (lang *NestJS) gatherProjectFiles(
+	allFiles []string,
+	project *Project,
+	nestjsConfig *NestjsConfig,
+) []string {
 	if project == nil {
 		return allFiles
 	}
@@ -385,7 +398,10 @@ func (lang *NestJS) genPkgRule(args language.GenerateArgs, nestjsConfig *NestjsC
 	return nil
 }
 
-func (lang *NestJS) genPackageJSONRule(args language.GenerateArgs, config *NestjsConfig) ([]*rule.Rule, []interface{}) {
+func (lang *NestJS) genPackageJSONRule(
+	args language.GenerateArgs,
+	config *NestjsConfig,
+) ([]*rule.Rule, []interface{}) {
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 
@@ -399,7 +415,11 @@ func (lang *NestJS) genPackageJSONRule(args language.GenerateArgs, config *Nestj
 	return generatedRules, generatedImports
 }
 
-func (lang *NestJS) genTSConfigRule(args language.GenerateArgs, suffixName string, visibilities []string) ([]*rule.Rule, []interface{}) {
+func (lang *NestJS) genTSConfigRule(
+	args language.GenerateArgs,
+	suffixName string,
+	visibilities []string,
+) ([]*rule.Rule, []interface{}) {
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 	// For jest tests
@@ -654,7 +674,10 @@ func (lang *NestJS) makeModuleRules(
 	return allImports, allRules
 }
 
-func (lang *NestJS) makeFolderRule(args moduleRuleArgs, jsConfig *NestjsConfig) (*imports, *rule.Rule) {
+func (lang *NestJS) makeFolderRule(
+	args moduleRuleArgs,
+	jsConfig *NestjsConfig,
+) (*imports, *rule.Rule) {
 
 	moduleImports := flattenImports(args.imports)
 

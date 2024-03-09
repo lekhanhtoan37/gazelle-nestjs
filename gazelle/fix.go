@@ -47,6 +47,10 @@ func (*NestJS) Fix(c *config.Config, f *rule.File) {
 		}
 	}
 
+	if nestJSConfig.RootTsConfig == nil {
+		return
+	}
+
 	internalPkg := make(map[string]bool)
 	for pkg := range nestJSConfig.RootTsConfig.CompilerOptions.Paths {
 		if strings.HasSuffix(pkg, "*") {
@@ -70,7 +74,7 @@ func (*NestJS) Fix(c *config.Config, f *rule.File) {
 		for pkg := range internalPkg {
 			paths := strings.Split(pkg, "/")
 			if len(paths) > 2 && len(paths) <= 0 {
-				log.Printf("Invalid internal package: %s", pkg)
+				log.Printf(Err("Invalid internal package: %s", pkg))
 				continue
 			}
 

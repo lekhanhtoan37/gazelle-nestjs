@@ -149,14 +149,14 @@ func (nestjsConfig *NestjsConfig) parseRootTsConfig() {
 	tsConfigPath := path.Join(nestjsConfig.Root, nestjsConfig.RootTsConfigFile)
 	data, err := os.ReadFile(tsConfigPath)
 	if err != nil {
-		log.Printf("Read tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err)
+		log.Printf(Err("Read tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err))
 		return
 	}
 
 	var tsConfig *TsConfig
 	err = json.Unmarshal(data, &tsConfig)
 	if err != nil {
-		log.Printf("Parse tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err)
+		log.Printf(Err("Parse tsconfig for project failed: %v, err: %v \n", nestjsConfig.Root, err))
 		return
 	}
 
@@ -180,17 +180,26 @@ func (nestjsConfig *NestjsConfig) parseJestConfig() {
 			log.Printf(Err("failed to parse %s: %v\n", nestjsConfig.jestConfigPath, err))
 			return
 		}
-
 		nestjsConfig.jestConfig = &wrappedJestConfig.Jest
 	} else {
 		// TODO: Support jest.config.js OR jest.config.ts
 	}
 }
 
-func (nestjsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Config, ruleFile *rule.File, directive rule.Directive) {
+func (nestjsConfig *NestjsConfig) parsePackageJSON(
+	bazelGazelleConfig *config.Config,
+	ruleFile *rule.File,
+	directive rule.Directive,
+) {
 	values := strings.Split(directive.Value, " ")
 	if len(values) != 2 {
-		log.Fatalf(Err("failed to read directive %s: %s, expected 2 values", directive.Key, directive.Value))
+		log.Fatalf(
+			Err(
+				"failed to read directive %s: %s, expected 2 values",
+				directive.Key,
+				directive.Value,
+			),
+		)
 	}
 	nestjsConfig.PackageFile = values[0]
 	npmLabel := values[1]
@@ -238,7 +247,10 @@ func (nestjsConfig *NestjsConfig) parsePackageJSON(bazelGazelleConfig *config.Co
 	nestjsConfig.PnpmLockFilePath = path.Join(rootDir, nestjsConfig.PnpmLockFilePath)
 }
 
-func (nestjsConfig *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Config, ruleFile *rule.File) {
+func (nestjsConfig *NestjsConfig) parseNestCliJSON(
+	bazelGazelleConfig config.Config,
+	ruleFile *rule.File,
+) {
 	var root string
 	if bazelGazelleConfig.ReadBuildFilesDir != "" {
 		root = path.Join(bazelGazelleConfig.ReadBuildFilesDir, ruleFile.Pkg)
@@ -286,7 +298,10 @@ func (nestjsConfig *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Con
 
 		if nestCliConfig.Projects[projectName].CompilerOptions.TsConfigPath != "" {
 			nestCliConfig.Projects[projectName].TsConfigRel = nestCliConfig.Projects[projectName].CompilerOptions.TsConfigPath
-			nestCliConfig.Projects[projectName].TsConfigPath = path.Join(nestjsConfig.RootPkg, nestCliConfig.Projects[projectName].TsConfigRel)
+			nestCliConfig.Projects[projectName].TsConfigPath = path.Join(
+				nestjsConfig.RootPkg,
+				nestCliConfig.Projects[projectName].TsConfigRel,
+			)
 			nestCliConfig.Projects[projectName].ParseTsConfig(root)
 		}
 
@@ -298,7 +313,6 @@ func (nestjsConfig *NestjsConfig) parseNestCliJSON(bazelGazelleConfig config.Con
 		nestjsConfig.Visibility = visibility
 	}
 
-	log.Printf("Parse nest-cli.json success: %v", nestjsConfig.PackageByDir)
 	nestjsConfig.NestCliPath = path.Join(root, nestjsConfig.NestCliPath)
 	nestjsConfig.CompilerOptions = nestCliConfig.CompilerOptions
 	nestjsConfig.IsNestjs = true
@@ -415,7 +429,13 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			case "disabled":
 				nestjsConfig.Enabled = false
 			default:
-				log.Fatalf(Err("failed to read directive %s: %s, only \"enabled\", and \"disabled\" are valid", directive.Key, directive.Value))
+				log.Fatalf(
+					Err(
+						"failed to read directive %s: %s, only \"enabled\", and \"disabled\" are valid",
+						directive.Key,
+						directive.Value,
+					),
+				)
 			}
 
 		case "js_lookup_types":
@@ -429,12 +449,18 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 
 		case "js_import_alias":
 			vals := strings.SplitN(directive.Value, " ", 2)
-			nestjsConfig.ImportAliases = append(nestjsConfig.ImportAliases, struct{ From, To string }{From: vals[0], To: strings.TrimSpace(vals[1])})
+			nestjsConfig.ImportAliases = append(
+				nestjsConfig.ImportAliases,
+				struct{ From, To string }{From: vals[0], To: strings.TrimSpace(vals[1])},
+			)
 
 			// Regenerate ImportAliasPattern
 			keyPatterns := make([]string, 0, len(nestjsConfig.ImportAliases))
 			for _, alias := range nestjsConfig.ImportAliases {
-				keyPatterns = append(keyPatterns, fmt.Sprintf("(^%s)", regexp.QuoteMeta(alias.From)))
+				keyPatterns = append(
+					keyPatterns,
+					fmt.Sprintf("(^%s)", regexp.QuoteMeta(alias.From)),
+				)
 			}
 
 			var err error
@@ -446,7 +472,8 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			nestjsConfig.Visibility.Set(directive.Value)
 		case "js_default_npm_label":
 			nestjsConfig.DefaultNpmLabel = directive.Value
-			if !strings.HasSuffix(nestjsConfig.DefaultNpmLabel, ":") && !strings.HasSuffix(nestjsConfig.DefaultNpmLabel, "/") {
+			if !strings.HasSuffix(nestjsConfig.DefaultNpmLabel, ":") &&
+				!strings.HasSuffix(nestjsConfig.DefaultNpmLabel, "/") {
 				nestjsConfig.DefaultNpmLabel += "/"
 			}
 
@@ -488,7 +515,8 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			}
 
 		case "js_jest_config":
-			nestjsConfig.JestConfigRelativePath = labels.ParseRelative(directive.Value, f.Pkg).Format()
+			nestjsConfig.JestConfigRelativePath = labels.ParseRelative(directive.Value, f.Pkg).
+				Format()
 			nestjsConfig.jestConfigPath = path.Join(f.Pkg, nestjsConfig.JestConfigRelativePath)
 
 		case "js_jest_test_per_shard":
@@ -691,7 +719,9 @@ func (parent *NestjsConfig) NewChild() *NestjsConfig {
 	child.CollectAllRoot = parent.CollectAllRoot
 
 	child.SourcePerProject = parent.SourcePerProject // copy map
-	child.CollectAllSources = make(map[string]bool)  // Copy reference, reinitialized on change to CollectAll
+	child.CollectAllSources = make(
+		map[string]bool,
+	) // Copy reference, reinitialized on change to CollectAll
 
 	child.JestTestsPerShard = parent.JestTestsPerShard
 	child.JestSize = parent.JestSize
