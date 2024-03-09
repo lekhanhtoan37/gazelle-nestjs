@@ -120,9 +120,9 @@ http_archive(
 http_archive(
     name = "com_github_lekhanhtoan37_gazelle_nestjs",
     # sha256 = "7f181f1b9ddf44bcb8812aac0a51163a846ff01cfba0809897ca66fafa66f9a6",
-    strip_prefix = "gazelle-nestjs-0.0.5",
+    strip_prefix = "gazelle-nestjs-0.0.6",
     urls = [
-        "https://github.com/lekhanhtoan37/gazelle-nestjs/archive/refs/tags/v0.0.5.tar.gz",
+        "https://github.com/lekhanhtoan37/gazelle-nestjs/archive/refs/tags/v0.0.6.tar.gz",
     ],
 )
 
@@ -131,7 +131,7 @@ http_archive(
 
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
-# load("@com_github_lekhanhtoan37_gazelle_nestjs//:deps.bzl", "go_dependencies")
+load("@com_github_lekhanhtoan37_gazelle_nestjs//:deps.bzl", "go_dependencies")
 
 ############################################################
 # Define your own dependencies here using go_repository.
@@ -139,7 +139,7 @@ load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 # The first declaration of an external repository "wins".
 ############################################################
 
-# go_dependencies()
+go_dependencies()
 
 go_rules_dependencies()
 

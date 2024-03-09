@@ -3,8 +3,8 @@ load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary
 gazelle(
     name = "gazelle",
     args = ["-build_file_name=BUILD.bazel"],
-    visibility = ["//visibility:public"],
     gazelle = ":gazelle_nestjs",
+    visibility = ["//visibility:public"],
 )
 
 gazelle_binary(
