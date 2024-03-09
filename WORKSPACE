@@ -33,6 +33,7 @@ load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 
 load("//:deps.bzl", "gazelle_deps")
 
+# gazelle:repository_macro deps.bzl%gazelle_deps
 gazelle_deps()
 
 go_rules_dependencies()
