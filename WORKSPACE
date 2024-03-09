@@ -25,6 +25,13 @@ http_archive(
 load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
 
+go_rules_dependencies()
+
+go_register_toolchains(version = "1.19")
+# go_register_toolchains(version = "1.21.6")
+
+gazelle_dependencies()
+
 ############################################################
 # Define your own dependencies here using go_repository.
 # Else, dependencies declared by rules_go/gazelle will be used.
@@ -35,9 +42,3 @@ load("//:deps.bzl", "gazelle_deps")
 
 # gazelle:repository_macro deps.bzl%gazelle_deps
 gazelle_deps()
-
-go_rules_dependencies()
-
-go_register_toolchains(version = "1.21.6")
-
-gazelle_dependencies()
