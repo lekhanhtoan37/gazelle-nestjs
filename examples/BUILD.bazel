@@ -1,3 +1,6 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
+load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
 gazelle(
@@ -16,3 +19,25 @@ gazelle_binary(
 )
 # gazelle:exclude **/node_modules
 # gazelle:js_package_file package.json :node_modules
+
+js_library(
+    name = "package_json",
+    srcs = ["package.json"],
+)
+
+copy_to_bin(
+    name = "root_package_json",
+    srcs = ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+ts_config(
+    name = "root_tsconfig",
+    src = "tsconfig.json",
+    visibility = ["//visibility:public"],
+)
+
+exports_files(
+    [".swcrc"],
+    visibility = ["//visibility:public"],
+)
