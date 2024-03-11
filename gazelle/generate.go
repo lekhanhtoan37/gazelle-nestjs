@@ -121,13 +121,6 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 
 	project := cfg.PackageByDir[args.Rel]
 
-	// // Reset the collected sources for another package
-	// defer func() {
-	// 	if project != nil {
-	// 		cfg.CollectAllSources = make(map[string]bool)
-	// 	}
-	// }()
-
 	if project == nil {
 		for _, proj := range cfg.PackageByDir {
 			relativePath, err := filepath.Rel(proj.Rel, args.Rel)
@@ -196,7 +189,7 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 		generatedImports = append(generatedImports, generatedTSImports...)
 	}
 
-	if (cfg.RootPkg == args.Rel) || (args.Rel == "" && cfg.RootPkg == ".") {
+	if cfg.RootPkg == args.Rel {
 		rules, imports := lang.genPackageJSONRule(args, cfg)
 		generatedRules = append(generatedRules, rules...)
 		generatedImports = append(generatedImports, imports...)

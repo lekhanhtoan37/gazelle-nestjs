@@ -134,7 +134,6 @@ func NewNestjsConfig() *NestjsConfig {
 
 func newJsConfigsWithRootConfig() NestjsConfigs {
 	rootConfig := NewNestjsConfig()
-	rootConfig.RootPkg = "."
 	rootConfig.CollectedAssets = make(map[string]bool)
 	return NestjsConfigs{
 		"": rootConfig,
@@ -486,7 +485,7 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 			if err != nil {
 				log.Fatalf(Err("failed to read directive %s: %v", directive.Key, err))
 			} else {
-				nestjsConfig.RootPkg = jSRoot
+				nestjsConfig.Root = jSRoot
 				nestjsConfig.CollectedAssets = make(map[string]bool)
 			}
 
