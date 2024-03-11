@@ -1,4 +1,10 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_ts//ts:defs.bzl", "ts_config")
+load("@aspect_bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+
+npm_link_all_packages(name = "node_modules")
 
 gazelle(
     name = "gazelle",
@@ -10,11 +16,10 @@ gazelle(
 gazelle_binary(
     name = "gazelle_nestjs",
     languages = DEFAULT_LANGUAGES + [
-        "@com_github_lekhanhtoan37_gazelle_nestjs//gazelle:gazelle",
+        "@com_github_lekhanhtoan37_gazelle_nestjs//gazelle",
     ],
     visibility = ["//visibility:public"],
 )
 
-# gazelle:exclude **/node_modules
 # gazelle:js_package_file package.json :node_modules
 # gazelle:js_root
