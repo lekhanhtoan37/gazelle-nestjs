@@ -85,7 +85,7 @@ type NestjsConfigs map[string]*NestjsConfig
 const DefaultPackageJsonPath = "package.json"
 
 func NewNestjsConfig() *NestjsConfig {
-	root := "."
+	root := ""
 	return &NestjsConfig{
 		Enabled:     true,
 		PackageFile: DefaultPackageJsonPath,
@@ -251,6 +251,7 @@ func (nestjsConfig *NestjsConfig) parseNestCliJSON(
 	bazelGazelleConfig config.Config,
 	ruleFile *rule.File,
 ) {
+	// log.Printf("parseNestCliJSON: %+v", ruleFile)
 	var root string
 	if bazelGazelleConfig.ReadBuildFilesDir != "" {
 		root = path.Join(bazelGazelleConfig.ReadBuildFilesDir, ruleFile.Pkg)
@@ -398,7 +399,10 @@ func (c *NestjsConfigs) ParentForPackage(pkg string) *NestjsConfig {
 // f is the build file for the current directory or nil if there is no
 // existing build file.
 func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
-
+	// rel := _rel
+	// if _rel == "" {
+	// 	rel = "."
+	// }
 	// Create the root config.
 	if _, exists := c.Exts[languageName]; !exists {
 		c.Exts[languageName] = newJsConfigsWithRootConfig()
@@ -559,6 +563,7 @@ func (*NestJS) Configure(c *config.Config, rel string, f *rule.File) {
 	}
 
 	if nestjsConfig.RootPkg != rel {
+		log.Printf("nestjsConfig.RootPkg != rel, %v != %v", nestjsConfig.RootPkg, rel)
 		return
 	}
 

@@ -73,7 +73,11 @@ func (lang *NestJS) genTsProject(
 			}
 
 			if project.TsConfig.Extends != "" {
-				moduleRule.SetAttr("extends", "//:"+nestjsConfig.RootPkg+"_tsconfig")
+				if nestjsConfig.RootPkg == "" || nestjsConfig.RootPkg == "." {
+					moduleRule.SetAttr("extends", "//:"+"root"+"_tsconfig")
+				} else {
+					moduleRule.SetAttr("extends", "//:"+nestjsConfig.RootPkg+"_tsconfig")
+				}
 			}
 		}
 
@@ -171,7 +175,11 @@ func (lang *NestJS) genTsProjectForTest(
 			}
 
 			if project.TsConfig.Extends != "" {
-				moduleRule.SetAttr("extends", "//:"+nestjsConfig.RootPkg+"_tsconfig")
+				if nestjsConfig.RootPkg == "" || nestjsConfig.RootPkg == "." {
+					moduleRule.SetAttr("extends", "//:"+"root"+"_tsconfig")
+				} else {
+					moduleRule.SetAttr("extends", "//:"+nestjsConfig.RootPkg+"_tsconfig")
+				}
 			}
 		}
 

@@ -1,6 +1,6 @@
 load("@bazel_gazelle//:def.bzl", "DEFAULT_LANGUAGES", "gazelle", "gazelle_binary")
 
-# gazelle:prefix github.com/lekhanhtoan37/gazelle-nestjs
+## gazelle:prefix github.com/lekhanhtoan37/gazelle-nestjs
 gazelle(
     name = "gazelle",
     gazelle = ":gazelle_bin",

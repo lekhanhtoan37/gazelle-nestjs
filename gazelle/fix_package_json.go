@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -25,25 +26,30 @@ func newPackageJSON(nameAlias string, main string) *packageJSON {
 
 func fixPackageJSON(packageJSONPath string, _packageJSON *packageJSON) error {
 	oldPackageJSONData, err := os.ReadFile(packageJSONPath)
-	if err != nil {
-		log.Printf(Warn("Read file package.json: %v", err))
-		return err
-	}
 
-	var oldPackageJSON *packageJSON
-	err = json.Unmarshal(oldPackageJSONData, &oldPackageJSON)
-	if err != nil {
-		log.Printf(Warn("Parse file package.json: %v", err))
-		return err
-	}
+	if err == nil {
+		var oldPackageJSON *packageJSON
+		err = json.Unmarshal(oldPackageJSONData, &oldPackageJSON)
+		if err != nil {
+			log.Printf(Warn("Parse file package.json: %v", err))
+			return err
+		}
 
-	if oldPackageJSON != nil && oldPackageJSON.Name == _packageJSON.Name && oldPackageJSON.Main == _packageJSON.Main {
-		return nil
+		if oldPackageJSON != nil && oldPackageJSON.Name == _packageJSON.Name &&
+			oldPackageJSON.Main == _packageJSON.Main {
+			return nil
+		}
 	}
 
 	data, err := json.MarshalIndent(_packageJSON, "", "  ")
 	if err != nil {
 		log.Fatalf("Error marshalling package.json: %v", err)
+		return err
+	}
+
+	data, err = unescapeUnicodeCharactersInJSON(data)
+	if err != nil {
+		log.Printf("Unescape unicode characters in JSON: %v", err)
 		return err
 	}
 
@@ -88,10 +94,24 @@ func updateRootPackageJSON(rootPackageJSONPath string, internalPkg map[string]bo
 		return err
 	}
 
+	data, err = unescapeUnicodeCharactersInJSON(data)
+	if err != nil {
+		log.Printf("Unescape unicode characters in JSON: %v", err)
+		return err
+	}
+
 	if err := os.WriteFile(rootPackageJSONPath, data, 0o666); err != nil {
 		log.Printf("Write new content in package.json: %v", err)
 		return err
 	}
 
 	return nil
+}
+
+func unescapeUnicodeCharactersInJSON(_jsonRaw json.RawMessage) (json.RawMessage, error) {
+	str, err := strconv.Unquote(strings.Replace(strconv.Quote(string(_jsonRaw)), `\\u`, `\u`, -1))
+	if err != nil {
+		return nil, err
+	}
+	return []byte(str), nil
 }

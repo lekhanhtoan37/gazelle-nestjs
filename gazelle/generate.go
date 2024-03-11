@@ -29,11 +29,7 @@ var jsRules = rule.LoadInfo{
 }
 var tsRules = rule.LoadInfo{
 	Name:    "@aspect_rules_ts//ts:defs.bzl",
-	Symbols: []string{"ts_project"},
-}
-var tsConfigRules = rule.LoadInfo{
-	Name:    "@aspect_rules_ts//ts:defs.bzl",
-	Symbols: []string{"ts_config"},
+	Symbols: []string{"ts_project", "ts_config"},
 }
 var jestRules = rule.LoadInfo{
 	Name:    "@rules_jest//jest:defs.bzl",
@@ -200,7 +196,7 @@ func (lang *NestJS) GenerateRules(args language.GenerateArgs) language.GenerateR
 		generatedImports = append(generatedImports, generatedTSImports...)
 	}
 
-	if cfg.RootPkg == args.Rel {
+	if (cfg.RootPkg == args.Rel) || (args.Rel == "" && cfg.RootPkg == ".") {
 		rules, imports := lang.genPackageJSONRule(args, cfg)
 		generatedRules = append(generatedRules, rules...)
 		generatedImports = append(generatedImports, imports...)
@@ -405,8 +401,12 @@ func (lang *NestJS) genPackageJSONRule(
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 
+	name := config.RootPkg
+	if name == "" || name == "." {
+		name = "root"
+	}
 	// For jest tests
-	r := rule.NewRule(getKind(args.Config, "copy_to_bin"), config.RootPkg+"_package_json")
+	r := rule.NewRule(getKind(args.Config, "copy_to_bin"), name+"_package_json")
 	r.SetAttr("srcs", []string{config.PackageFile})
 	r.SetAttr("visibility", []string{"//visibility:public"})
 
@@ -420,10 +420,15 @@ func (lang *NestJS) genTSConfigRule(
 	suffixName string,
 	visibilities []string,
 ) ([]*rule.Rule, []interface{}) {
+	name := suffixName
+	if suffixName == "" || suffixName == "." {
+		name = "root"
+	}
+
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 	// For jest tests
-	r := rule.NewRule(getKind(args.Config, "ts_config"), suffixName+"_tsconfig")
+	r := rule.NewRule(getKind(args.Config, "ts_config"), name+"_tsconfig")
 	r.SetAttr("src", "tsconfig.json")
 	if len(visibilities) > 0 {
 		r.SetAttr("visibility", visibilities)
