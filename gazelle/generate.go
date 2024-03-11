@@ -32,7 +32,7 @@ var tsRules = rule.LoadInfo{
 	Symbols: []string{"ts_project", "ts_config"},
 }
 var jestRules = rule.LoadInfo{
-	Name:    "@rules_jest//jest:defs.bzl",
+	Name:    "@aspect_rules_jest//jest:defs.bzl",
 	Symbols: []string{"jest_test"},
 }
 var npmPackageRules = rule.LoadInfo{
