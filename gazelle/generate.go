@@ -395,7 +395,7 @@ func (lang *NestJS) genPackageJSONRule(
 	generatedImports := make([]interface{}, 0)
 
 	name := config.RootPkg
-	if name == "" || name == "." {
+	if name == "" {
 		name = "root"
 	}
 	// For jest tests

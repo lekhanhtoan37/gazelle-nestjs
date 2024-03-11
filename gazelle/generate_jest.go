@@ -27,7 +27,12 @@ func (lang *NestJS) genJestTest(
 	}
 
 	// Gen ts_project for test
-	generatedTsRules, generatedTsImports := lang.genTsProjectForTest(args, nestjsConfig, project, jestSources)
+	generatedTsRules, generatedTsImports := lang.genTsProjectForTest(
+		args,
+		nestjsConfig,
+		project,
+		jestSources,
+	)
 	generatedRules = append(generatedRules, generatedTsRules...)
 	generatedImports = append(generatedImports, generatedTsImports...)
 
@@ -86,7 +91,11 @@ func addJestAttributes(
 	}
 
 	if config.jestConfigPath == config.PackageJSONPath {
-		r.SetAttr("config", fmt.Sprintf("//:%s_package_json", config.RootPkg))
+		name := config.RootPkg
+		if name == "" {
+			name = "root"
+		}
+		r.SetAttr("config", fmt.Sprintf("//:%s_package_json", name))
 	} else {
 		r.SetAttr("config", config.JestConfigRelativePath)
 	}
@@ -114,7 +123,11 @@ func addJestAttributes(
 	}
 }
 
-func genNpmPackage(args language.GenerateArgs, project *Project, tsSources []string) ([]*rule.Rule, []interface{}) {
+func genNpmPackage(
+	args language.GenerateArgs,
+	project *Project,
+	tsSources []string,
+) ([]*rule.Rule, []interface{}) {
 	generatedRules := make([]*rule.Rule, 0)
 	generatedImports := make([]interface{}, 0)
 	if project == nil || project.Type == "application" {
